@@ -70,7 +70,7 @@ func bucketPath(s ...string) [][]byte {
 	return r
 }
 
-func iterateKeys[K any](bucket *bolt.Bucket, keyEncoding *Encoding[K], start *K, reverse bool, f func(k, v []byte) (bool, error)) (next *K, err error) {
+func iterateKeys[K any](bucket *bolt.Bucket, keyEncoding Encoding[K], start *K, reverse bool, f func(k, v []byte) (bool, error)) (next *K, err error) {
 	var startKey []byte
 	if start != nil {
 
@@ -97,7 +97,7 @@ func iterateKeys[K any](bucket *bolt.Bucket, keyEncoding *Encoding[K], start *K,
 	return next, nil
 }
 
-func iterateList[V, O any](bucket *bolt.Bucket, valueEncoding *Encoding[V], orderByEncoding *Encoding[O], start *ListElement[V, O], reverse bool, f func(k, v []byte) (bool, error)) (next *ListElement[V, O], err error) {
+func iterateList[V, O any](bucket *bolt.Bucket, valueEncoding Encoding[V], orderByEncoding Encoding[O], start *ListElement[V, O], reverse bool, f func(k, v []byte) (bool, error)) (next *ListElement[V, O], err error) {
 	var startKey []byte
 	if start != nil {
 

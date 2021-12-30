@@ -13,8 +13,8 @@ import (
 
 type CollectionDefinition[K, V any] struct {
 	bucketName    []byte
-	keyEncoding   *Encoding[K]
-	valueEncoding *Encoding[V]
+	keyEncoding   Encoding[K]
+	valueEncoding Encoding[V]
 	fillPercent   float64
 	errNotFound   error
 	errKeyExists  error
@@ -28,8 +28,8 @@ type CollectionOptions struct {
 
 func NewCollectionDefinition[K, V any](
 	name string,
-	keyEncoding *Encoding[K],
-	valueEncoding *Encoding[V],
+	keyEncoding Encoding[K],
+	valueEncoding Encoding[V],
 	o *CollectionOptions,
 ) *CollectionDefinition[K, V] {
 	if o == nil {

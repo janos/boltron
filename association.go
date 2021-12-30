@@ -14,8 +14,8 @@ import (
 type AssociationDefinition[K, V any] struct {
 	bucketNameKeys   []byte
 	bucketNameValues []byte
-	keyEncoding      *Encoding[K]
-	valueEncoding    *Encoding[V]
+	keyEncoding      Encoding[K]
+	valueEncoding    Encoding[V]
 	errNotFound      error
 	errKeyExists     error
 	errValueExists   error
@@ -29,8 +29,8 @@ type AssociationOptions struct {
 
 func NewAssociationDefinition[K, V any](
 	name string,
-	keyEncoding *Encoding[K],
-	valueEncoding *Encoding[V],
+	keyEncoding Encoding[K],
+	valueEncoding Encoding[V],
 	o *AssociationOptions,
 ) *AssociationDefinition[K, V] {
 	if o == nil {

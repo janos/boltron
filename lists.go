@@ -17,9 +17,9 @@ type ListsDefinition[K, V, O any] struct {
 	bucketNameLists   []byte
 	bucketNameIndexes []byte
 	bucketNameValues  []byte
-	keyEncoding       *Encoding[K]
-	valueEncoding     *Encoding[V]
-	orderByEncoding   *Encoding[O]
+	keyEncoding       Encoding[K]
+	valueEncoding     Encoding[V]
+	orderByEncoding   Encoding[O]
 	uniqueValues      bool
 	errListNotFound   error
 	errValueNotFound  error
@@ -35,9 +35,9 @@ type ListsOptions struct {
 
 func NewListsDefinition[K, V, O any](
 	name string,
-	keyEncoding *Encoding[K],
-	valueEncoding *Encoding[V],
-	orderByEncoding *Encoding[O],
+	keyEncoding Encoding[K],
+	valueEncoding Encoding[V],
+	orderByEncoding Encoding[O],
 	o *ListsOptions,
 ) *ListsDefinition[K, V, O] {
 	if o == nil {

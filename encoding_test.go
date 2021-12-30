@@ -95,7 +95,7 @@ func TestNullEncoding(t *testing.T) {
 	})
 }
 
-func tableTestStringEncoding[T any](t *testing.T, encoding *boltron.Encoding[T], table []struct {
+func tableTestStringEncoding[T any](t *testing.T, encoding boltron.Encoding[T], table []struct {
 	value   T
 	encoded []byte
 }) {
@@ -104,7 +104,7 @@ func tableTestStringEncoding[T any](t *testing.T, encoding *boltron.Encoding[T],
 	}
 }
 
-func testEncoding[T any](t *testing.T, encoding *boltron.Encoding[T], value T, encoded []byte) {
+func testEncoding[T any](t *testing.T, encoding boltron.Encoding[T], value T, encoded []byte) {
 	t.Helper()
 
 	gotEncoded, err := encoding.Encode(value)

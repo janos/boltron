@@ -15,8 +15,8 @@ import (
 type ListDefinition[V, O any] struct {
 	bucketPath       [][]byte
 	bucketPathIndex  [][]byte
-	valueEncoding    *Encoding[V]
-	orderByEncoding  *Encoding[O]
+	valueEncoding    Encoding[V]
+	orderByEncoding  Encoding[O]
 	errValueNotFound error
 	addCallback      func(value, orderBy []byte) error // used by Lists
 }
@@ -27,8 +27,8 @@ type ListOptions struct {
 
 func NewListDefinition[V, O any](
 	name string,
-	valueEncoding *Encoding[V],
-	orderByEncoding *Encoding[O],
+	valueEncoding Encoding[V],
+	orderByEncoding Encoding[O],
 	o *ListOptions,
 ) *ListDefinition[V, O] {
 	if o == nil {

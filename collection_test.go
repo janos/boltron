@@ -27,18 +27,18 @@ var (
 		nil,
 	)
 
-	recordEncoding = &boltron.Encoding[*Record]{
-		Encode: func(r *Record) ([]byte, error) {
+	recordEncoding = boltron.NewEncoding(
+		func(r *Record) ([]byte, error) {
 			return json.Marshal(r)
 		},
-		Decode: func(b []byte) (*Record, error) {
+		func(b []byte) (*Record, error) {
 			var r Record
 			if err := json.Unmarshal(b, &r); err != nil {
 				return nil, err
 			}
 			return &r, nil
 		},
-	}
+	)
 
 	testRecords = []*Record{
 		{
