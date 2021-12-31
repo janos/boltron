@@ -6,6 +6,7 @@
 package boltron
 
 import (
+	"bytes"
 	"fmt"
 
 	bolt "go.etcd.io/bbolt"
@@ -119,15 +120,16 @@ func (c *Collection[K, V]) Save(key K, value V, overwrite bool) (overwriten bool
 	if err != nil {
 		return false, fmt.Errorf("bucket: %w", err)
 	}
-	exists := bucket.Get(k) != nil
-	if exists && !overwrite {
-		return false, c.definition.errKeyExists
-	}
 	v, err := c.definition.valueEncoding.Encode(value)
 	if err != nil {
 		return false, fmt.Errorf("encode value: %w", err)
 	}
-	return exists, bucket.Put(k, v)
+	currentValue := bucket.Get(k)
+	overwriten = currentValue != nil && !bytes.Equal(currentValue, v)
+	if overwriten && !overwrite {
+		return false, c.definition.errKeyExists
+	}
+	return overwriten, bucket.Put(k, v)
 }
 
 func (c *Collection[K, V]) Delete(key K, ensure bool) error {

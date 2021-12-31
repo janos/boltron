@@ -138,6 +138,24 @@ func TestAssociation_singleRelation(t *testing.T) {
 		assertFail(t, "", err, nil)
 		assert(t, "", hasValue, false)
 	})
+
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		numbers := numbersDefinition.Association(tx)
+
+		err := numbers.Set(key, value)
+		assertFail(t, "", err, nil)
+
+		err = numbers.Set(key, value)
+		assertFail(t, "", err, nil)
+
+		hasKey, err := numbers.HasKey(key)
+		assertFail(t, "", err, nil)
+		assert(t, "", hasKey, true)
+
+		hasValue, err := numbers.HasValue(value)
+		assertFail(t, "", err, nil)
+		assert(t, "", hasValue, true)
+	})
 }
 
 func TestAssociation_iterate(t *testing.T) {

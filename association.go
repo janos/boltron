@@ -6,6 +6,7 @@
 package boltron
 
 import (
+	"bytes"
 	"fmt"
 
 	bolt "go.etcd.io/bbolt"
@@ -171,9 +172,8 @@ func (a *Association[K, V]) Set(key K, value V) error {
 	if err != nil {
 		return fmt.Errorf("keys bucket: %w", err)
 	}
-	if keysBucket.Get(k) != nil {
-		return a.definition.errKeyExists
-	}
+
+	currentValue := keysBucket.Get(k)
 
 	v, err := a.definition.valueEncoding.Encode(value)
 	if err != nil {
@@ -185,8 +185,18 @@ func (a *Association[K, V]) Set(key K, value V) error {
 		return fmt.Errorf("values bucket: %w", err)
 	}
 
-	if valuesBucket.Get(v) != nil {
+	currentKey := valuesBucket.Get(v)
+
+	if bytes.Equal(k, currentKey) && bytes.Equal(v, currentValue) {
+		return nil
+	}
+
+	if currentKey != nil {
 		return a.definition.errValueExists
+	}
+
+	if currentValue != nil {
+		return a.definition.errKeyExists
 	}
 
 	if err := keysBucket.Put(k, v); err != nil {

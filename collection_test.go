@@ -131,6 +131,26 @@ func TestCollection_singleRecord(t *testing.T) {
 		assertFail(t, "", err, nil)
 		assert(t, "", has, false)
 	})
+
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		records := recordsDefinition.Collection(tx)
+
+		overwriten, err := records.Save(r.ID, r, false)
+		assertFail(t, "", err, nil)
+		assert(t, "", overwriten, false)
+
+		overwriten, err = records.Save(r.ID, r, false)
+		assertFail(t, "", err, nil)
+		assert(t, "", overwriten, false)
+
+		overwriten, err = records.Save(r.ID, r, true)
+		assertFail(t, "", err, nil)
+		assert(t, "", overwriten, false)
+
+		overwriten, err = records.Save(r.ID, testRecords[1], false)
+		assertFail(t, "", err, boltron.ErrKeyExists)
+		assert(t, "", overwriten, false)
+	})
 }
 
 func TestCollection_iterate(t *testing.T) {
