@@ -4,6 +4,27 @@
 [![PkgGoDev](https://pkg.go.dev/badge/resenje.org/boltron)](https://pkg.go.dev/resenje.org/boltron)
 [![NewReleases](https://newreleases.io/badge.svg)](https://newreleases.io/github/janos/boltron)
 
+Package boltron provides type safe generic constructs to design data models
+using [BoltDB](go.etcd.io/bbolt) embedded key value store.
+
+Definitions statically define encodings and options for other types to be
+serialized and they provide methods to access and modify serialized data
+within bolt transactions.
+
+There are three basic types with their definitions:
+
+- Collection
+- Association
+- List
+
+One complex type Lists provides methods to manage a set od lists.
+
 ## Installation
 
-Run `go get resenje.org/boltron` from command line.
+Run `go get -u resenje.org/boltron` from command line.
+
+Boltron uses Type Parameters (Generics) introduced in Go 1.18.
+
+## License
+
+This application is distributed under the BSD-style license found in the [LICENSE](LICENSE) file.

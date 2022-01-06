@@ -15,6 +15,6 @@ var (
 	// ErrKeyExists is the default error if the value already exists.
 	ErrValueExists = errors.New("boltron: value exists")
 	// ErrInvalidPageNumber is returned on on pagination methods where page
-	// number is less then 1.
+	// number is less than 1.
 	ErrInvalidPageNumber = errors.New("boltron: invalid page number")
 )
