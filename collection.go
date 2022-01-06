@@ -12,6 +12,8 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
+// CollectionDefinition defines the most basic data model which is a Collection
+// of keys and values. Each key is a unique within a Collection.
 type CollectionDefinition[K, V any] struct {
 	bucketName    []byte
 	keyEncoding   Encoding[K]
@@ -21,12 +23,19 @@ type CollectionDefinition[K, V any] struct {
 	errKeyExists  error
 }
 
+// CollectionOptions provides additional configuration for a Collection.
 type CollectionOptions struct {
-	FillPercent  float64
-	ErrNotFound  error
+	// FillPercent is the value for the bolt bucket fill percent.
+	FillPercent float64
+	// ErrNotFound is returned if the key is not found.
+	ErrNotFound error
+	// ErrKeyExists is returned if the key already exists and its value is not
+	// allowed to be overwritten.
 	ErrKeyExists error
 }
 
+// NewCollectionDefinition constructs a new CollectionDefinition with a unique
+// name and key and value encodings.
 func NewCollectionDefinition[K, V any](
 	name string,
 	keyEncoding Encoding[K],
@@ -45,6 +54,8 @@ func NewCollectionDefinition[K, V any](
 	}
 }
 
+// Collection returns a Collection that has access to the stored data through
+// the bolt transaction.
 func (d *CollectionDefinition[K, V]) Collection(tx *bolt.Tx) *Collection[K, V] {
 	return &Collection[K, V]{
 		tx:         tx,
@@ -52,6 +63,7 @@ func (d *CollectionDefinition[K, V]) Collection(tx *bolt.Tx) *Collection[K, V] {
 	}
 }
 
+// Collection provides methods to access and change key/value pairs.
 type Collection[K, V any] struct {
 	tx          *bolt.Tx
 	bucketCache *bolt.Bucket
@@ -73,6 +85,7 @@ func (c *Collection[K, V]) bucket(create bool) (*bolt.Bucket, error) {
 	return bucket, nil
 }
 
+// Has returns true if the key already exists in the database.
 func (c *Collection[K, V]) Has(key K) (bool, error) {
 	k, err := c.definition.keyEncoding.Encode(key)
 	if err != nil {
@@ -88,6 +101,8 @@ func (c *Collection[K, V]) Has(key K) (bool, error) {
 	return bucket.Get(k) != nil, nil
 }
 
+// Get returns a value associated with the given key. If key does not exist,
+// ErrNotFound is returned.
 func (c *Collection[K, V]) Get(key K) (value V, err error) {
 	k, err := c.definition.keyEncoding.Encode(key)
 	if err != nil {
@@ -111,7 +126,9 @@ func (c *Collection[K, V]) Get(key K) (value V, err error) {
 	return value, nil
 }
 
-func (c *Collection[K, V]) Save(key K, value V, overwrite bool) (overwriten bool, err error) {
+// Save saves the key/value pair. If the overwrite flag is set to false and key
+// already exists, configured ErrKeyExists is returned.
+func (c *Collection[K, V]) Save(key K, value V, overwrite bool) (overwritten bool, err error) {
 	k, err := c.definition.keyEncoding.Encode(key)
 	if err != nil {
 		return false, fmt.Errorf("encode key: %w", err)
@@ -125,13 +142,16 @@ func (c *Collection[K, V]) Save(key K, value V, overwrite bool) (overwriten bool
 		return false, fmt.Errorf("encode value: %w", err)
 	}
 	currentValue := bucket.Get(k)
-	overwriten = currentValue != nil && !bytes.Equal(currentValue, v)
-	if overwriten && !overwrite {
+	overwritten = currentValue != nil && !bytes.Equal(currentValue, v)
+	if overwritten && !overwrite {
 		return false, c.definition.errKeyExists
 	}
-	return overwriten, bucket.Put(k, v)
+	return overwritten, bucket.Put(k, v)
 }
 
+// Delete removes the key and its associated value from the database. If ensure
+// flag is set to true and the key does not exist, configured ErrNotFound is
+// returned.
 func (c *Collection[K, V]) Delete(key K, ensure bool) error {
 	k, err := c.definition.keyEncoding.Encode(key)
 	if err != nil {
@@ -156,6 +176,7 @@ func (c *Collection[K, V]) Delete(key K, ensure bool) error {
 	return bucket.Delete(k)
 }
 
+// Iterate iterates over keys and values in the lexicographical order of keys.
 func (c *Collection[K, V]) Iterate(start *K, reverse bool, f func(K, V) (bool, error)) (next *K, err error) {
 	bucket, err := c.bucket(false)
 	if err != nil {
@@ -179,6 +200,7 @@ func (c *Collection[K, V]) Iterate(start *K, reverse bool, f func(K, V) (bool, e
 	})
 }
 
+// IterateKeys iterates over keys in the lexicographical order of keys.
 func (c *Collection[K, V]) IterateKeys(start *K, reverse bool, f func(K) (bool, error)) (next *K, err error) {
 	bucket, err := c.bucket(false)
 	if err != nil {
@@ -197,6 +219,7 @@ func (c *Collection[K, V]) IterateKeys(start *K, reverse bool, f func(K) (bool, 
 	})
 }
 
+// IterateValues iterates over values in the lexicographical order of keys.
 func (c *Collection[K, V]) IterateValues(start *K, reverse bool, f func(V) (bool, error)) (next *K, err error) {
 	bucket, err := c.bucket(false)
 	if err != nil {
@@ -215,6 +238,7 @@ func (c *Collection[K, V]) IterateValues(start *K, reverse bool, f func(V) (bool
 	})
 }
 
+// Page returns at most a limit of elements of key/value pairs at the provided page number.
 func (c *Collection[K, V]) Page(number, limit int, reverse bool) (s []Element[K, V], totalElements, pages int, err error) {
 	bucket, err := c.bucket(false)
 	if err != nil {
@@ -238,6 +262,7 @@ func (c *Collection[K, V]) Page(number, limit int, reverse bool) (s []Element[K,
 	})
 }
 
+// PageOfKeys returns at most a limit of keys at the provided page number.
 func (c *Collection[K, V]) PageOfKeys(number, limit int, reverse bool) (s []K, totalElements, pages int, err error) {
 	bucket, err := c.bucket(false)
 	if err != nil {
@@ -251,6 +276,7 @@ func (c *Collection[K, V]) PageOfKeys(number, limit int, reverse bool) (s []K, t
 	})
 }
 
+// PageOfValues returns at most a limit of values at the provided page number.
 func (c *Collection[K, V]) PageOfValues(number, limit int, reverse bool) (s []V, totalElements, pages int, err error) {
 	bucket, err := c.bucket(false)
 	if err != nil {

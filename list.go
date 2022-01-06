@@ -12,6 +12,10 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
+// ListDefinition defines a list of values, ordered by the provided order type.
+// List values are unique, but the order by values are not. If the order is
+// defined by the values encoding, or it is not important, order by encoding
+// should be set to NullEncoding.
 type ListDefinition[V, O any] struct {
 	bucketPath       [][]byte
 	bucketPathIndex  [][]byte
@@ -21,10 +25,14 @@ type ListDefinition[V, O any] struct {
 	addCallback      func(value, orderBy []byte) error // used by Lists
 }
 
+// ListOptions provides additional configuration for a List.
 type ListOptions struct {
+	// ErrValueNotFound is returned if the value is not found.
 	ErrValueNotFound error
 }
 
+// NewListDefinition constructs a new ListDefinition with a unique name and key
+// and order by encodings.
 func NewListDefinition[V, O any](
 	name string,
 	valueEncoding Encoding[V],
@@ -43,6 +51,8 @@ func NewListDefinition[V, O any](
 	}
 }
 
+// List returns a List that has access to the stored data through the bolt
+// transaction.
 func (d *ListDefinition[V, O]) List(tx *bolt.Tx) *List[V, O] {
 	return &List[V, O]{
 		tx:         tx,
@@ -50,6 +60,7 @@ func (d *ListDefinition[V, O]) List(tx *bolt.Tx) *List[V, O] {
 	}
 }
 
+// List provides methods to access and change ordered list of values.
 type List[V, O any] struct {
 	tx               *bolt.Tx
 	listBucketCache  *bolt.Bucket
@@ -81,6 +92,7 @@ func (l *List[V, O]) indexBucket(create bool) (*bolt.Bucket, error) {
 	return bucket, nil
 }
 
+// Has returns true if the value already exists in the database.
 func (o *List[V, O]) Has(value V) (bool, error) {
 	v, err := o.definition.valueEncoding.Encode(value)
 	if err != nil {
@@ -96,6 +108,7 @@ func (o *List[V, O]) Has(value V) (bool, error) {
 	return indexBucket.Get(v) != nil, nil
 }
 
+// OrderBy returns the saved order by instance for the provided value.
 func (l *List[V, O]) OrderBy(value V) (orderBy O, err error) {
 	v, err := l.definition.valueEncoding.Encode(value)
 	if err != nil {
@@ -123,6 +136,7 @@ func (l *List[V, O]) OrderBy(value V) (orderBy O, err error) {
 	return orderBy, nil
 }
 
+// Add adds a value to the list with an order by instance.
 func (l *List[V, O]) Add(value V, orderBy O) error {
 	v, err := l.definition.valueEncoding.Encode(value)
 	if err != nil {
@@ -170,6 +184,9 @@ func (l *List[V, O]) Add(value V, orderBy O) error {
 	return nil
 }
 
+// Remove removes the value and its associated order by from the database. If
+// ensure flag is set to true and the value does not exist, ErrNotFound is
+// returned.
 func (l *List[V, O]) Remove(value V, ensure bool) error {
 	v, err := l.definition.valueEncoding.Encode(value)
 	if err != nil {
@@ -204,6 +221,7 @@ func (l *List[V, O]) Remove(value V, ensure bool) error {
 	return nil
 }
 
+// Iterate iterates over keys and values in the lexicographical order of keys.
 func (l *List[V, O]) Iterate(start *ListElement[V, O], reverse bool, f func(V, O) (bool, error)) (next *ListElement[V, O], err error) {
 	listBucket, err := l.listBucket(false)
 	if err != nil {
@@ -227,6 +245,7 @@ func (l *List[V, O]) Iterate(start *ListElement[V, O], reverse bool, f func(V, O
 	})
 }
 
+// IterateValues iterates over values in the lexicographical order of order by.
 func (l *List[V, O]) IterateValues(start *ListElement[V, O], reverse bool, f func(V) (bool, error)) (next *ListElement[V, O], err error) {
 	listBucket, err := l.listBucket(false)
 	if err != nil {
@@ -245,6 +264,8 @@ func (l *List[V, O]) IterateValues(start *ListElement[V, O], reverse bool, f fun
 	})
 }
 
+// ListElement is the type returned by List pagination methods as slice elements
+// that cointain both value and order by.
 type ListElement[V, O any] struct {
 	Value   V
 	OrderBy O
@@ -257,6 +278,7 @@ func newListElement[V, O any](v V, o O) (ListElement[V, O], error) {
 	}, nil
 }
 
+// Page returns at most a limit of elements of values and order by instances at the provided page number.
 func (l *List[V, O]) Page(number, limit int, reverse bool) (s []ListElement[V, O], totalElements, pages int, err error) {
 	listBucket, err := l.listBucket(false)
 	if err != nil {
@@ -280,6 +302,7 @@ func (l *List[V, O]) Page(number, limit int, reverse bool) (s []ListElement[V, O
 	})
 }
 
+// PageOfValues returns at most a limit of elements of values at the provided page number.
 func (l *List[V, O]) PageOfValues(number, limit int, reverse bool) (s []V, totalElements, pages int, err error) {
 	listBucket, err := l.listBucket(false)
 	if err != nil {

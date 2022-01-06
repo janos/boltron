@@ -18,15 +18,15 @@ var (
 	projectDependenciesDefinition = boltron.NewListsDefinition(
 		"project dependencies",
 		boltron.StringEncoding,
-		boltron.Uint64Base36Encoding, // depdency id in another collection
+		boltron.Uint64Base36Encoding, // dependency id in another collection
 		boltron.TimeEncoding,
 		nil,
 	)
 
 	testProjectDependencies = []struct {
-		ProjectName string
-		DependecyID uint64
-		UpdateTime  time.Time
+		ProjectName  string
+		DependencyID uint64
+		UpdateTime   time.Time
 	}{
 		{"resenje.org/boltron", 382, time.Unix(1640731016, 0)},
 		{"resenje.org/boltron", 121, time.Unix(1640730983, 0)},
@@ -84,7 +84,7 @@ func TestLists(t *testing.T) {
 			assertFail(t, fmt.Sprintf("%+v", d), err, nil)
 			assert(t, fmt.Sprintf("%+v", d), exists, true)
 
-			has, err = projectDependencies.HasValue(d.DependecyID)
+			has, err = projectDependencies.HasValue(d.DependencyID)
 			assertFail(t, fmt.Sprintf("%+v", d), err, nil)
 			assert(t, fmt.Sprintf("%+v", d), has, true)
 		}
@@ -166,9 +166,9 @@ func TestLists(t *testing.T) {
 			assertFail(t, fmt.Sprintf("%+v", d), err, nil)
 			assert(t, fmt.Sprintf("%+v", d), exists, d.ProjectName != deletedList)
 
-			has, err = projectDependencies.HasValue(d.DependecyID)
+			has, err = projectDependencies.HasValue(d.DependencyID)
 			assertFail(t, fmt.Sprintf("%+v", d), err, nil)
-			assert(t, fmt.Sprintf("%+v", d), has, d.DependecyID != deletedValue && d.DependecyID != 501)
+			assert(t, fmt.Sprintf("%+v", d), has, d.DependencyID != deletedValue && d.DependencyID != 501)
 		}
 	})
 }
@@ -623,16 +623,16 @@ func projectsDependenciesDB(t testing.TB) *bolt.DB {
 		for _, d := range testProjectDependencies {
 			switch d.ProjectName {
 			case "resenje.org/boltron":
-				err := boltronProjectDependencies.Add(d.DependecyID, d.UpdateTime)
+				err := boltronProjectDependencies.Add(d.DependencyID, d.UpdateTime)
 				assertFail(t, fmt.Sprintf("%+v", d), err, nil)
 			case "resenje.org/schulze":
-				err := schulzeProjectDependencies.Add(d.DependecyID, d.UpdateTime)
+				err := schulzeProjectDependencies.Add(d.DependencyID, d.UpdateTime)
 				assertFail(t, fmt.Sprintf("%+v", d), err, nil)
 			case "resenje.org/web":
-				err := webProjectDependencies.Add(d.DependecyID, d.UpdateTime)
+				err := webProjectDependencies.Add(d.DependencyID, d.UpdateTime)
 				assertFail(t, fmt.Sprintf("%+v", d), err, nil)
 			case "resenje.org/pool":
-				err := poolProjectDependencies.Add(d.DependecyID, d.UpdateTime)
+				err := poolProjectDependencies.Add(d.DependencyID, d.UpdateTime)
 				assertFail(t, fmt.Sprintf("%+v", d), err, nil)
 			}
 		}

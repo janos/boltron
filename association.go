@@ -12,6 +12,8 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
+// AssociationDefinition defines one-to-one relation between keys and values.
+// The relation is unique.
 type AssociationDefinition[K, V any] struct {
 	bucketNameKeys   []byte
 	bucketNameValues []byte
@@ -22,12 +24,18 @@ type AssociationDefinition[K, V any] struct {
 	errValueExists   error
 }
 
+// AssociationOptions provides additional configuration for an Association.
 type AssociationOptions struct {
-	ErrNotFound    error
-	ErrKeyExists   error
+	// ErrNotFound is returned if the key or value is not found.
+	ErrNotFound error
+	// ErrKeyExists is returned if the key already exists.
+	ErrKeyExists error
+	// ErrValueExists is returned if the value already exists.
 	ErrValueExists error
 }
 
+// NewAssociationDefinition constructs a new AssociationDefinition with a unique
+// name and key and value encodings.
 func NewAssociationDefinition[K, V any](
 	name string,
 	keyEncoding Encoding[K],
@@ -48,6 +56,8 @@ func NewAssociationDefinition[K, V any](
 	}
 }
 
+// Association returns an Association that has access to the stored data through
+// the bolt transaction.
 func (d *AssociationDefinition[K, V]) Association(tx *bolt.Tx) *Association[K, V] {
 	return &Association[K, V]{
 		tx:         tx,
@@ -55,6 +65,7 @@ func (d *AssociationDefinition[K, V]) Association(tx *bolt.Tx) *Association[K, V
 	}
 }
 
+// Association provides methods to access and change relations.
 type Association[K, V any] struct {
 	tx                *bolt.Tx
 	keysBucketCache   *bolt.Bucket
@@ -86,6 +97,7 @@ func (a *Association[K, V]) valuesBucket(create bool) (*bolt.Bucket, error) {
 	return bucket, nil
 }
 
+// HasKey returns true if the key already exists in the database.
 func (a *Association[K, V]) HasKey(key K) (bool, error) {
 	k, err := a.definition.keyEncoding.Encode(key)
 	if err != nil {
@@ -101,6 +113,7 @@ func (a *Association[K, V]) HasKey(key K) (bool, error) {
 	return keysBucket.Get(k) != nil, nil
 }
 
+// HasValue returns true if the value already exists in the database.
 func (a *Association[K, V]) HasValue(value V) (bool, error) {
 	v, err := a.definition.valueEncoding.Encode(value)
 	if err != nil {
@@ -115,6 +128,8 @@ func (a *Association[K, V]) HasValue(value V) (bool, error) {
 	return valuesBucket.Get(v) != nil, nil
 }
 
+// Key returns a key associated with the given value. If value does not exist,
+// ErrNotFound is returned.
 func (a *Association[K, V]) Key(value V) (key K, err error) {
 	v, err := a.definition.valueEncoding.Encode(value)
 	if err != nil {
@@ -140,6 +155,8 @@ func (a *Association[K, V]) Key(value V) (key K, err error) {
 	return key, nil
 }
 
+// Value returns a value associated with the given key. If key does not exist,
+// ErrNotFound is returned.
 func (a *Association[K, V]) Value(key K) (value V, err error) {
 	k, err := a.definition.keyEncoding.Encode(key)
 	if err != nil {
@@ -163,6 +180,9 @@ func (a *Association[K, V]) Value(key K) (value V, err error) {
 	return value, nil
 }
 
+// Set saves the relation between the key and value. If key already exists,
+// configured ErrKeyExists is returned, if value exists, configured
+// ErrValueExists is returned.
 func (a *Association[K, V]) Set(key K, value V) error {
 	k, err := a.definition.keyEncoding.Encode(key)
 	if err != nil {
@@ -209,6 +229,9 @@ func (a *Association[K, V]) Set(key K, value V) error {
 	return nil
 }
 
+// DeleteByKey removes the relation that contains the provided key. If ensure
+// flag is set to true and the key does not exist, configured ErrNotFound is
+// returned.
 func (a *Association[K, V]) DeleteByKey(key K, ensure bool) error {
 	k, err := a.definition.keyEncoding.Encode(key)
 	if err != nil {
@@ -244,6 +267,9 @@ func (a *Association[K, V]) DeleteByKey(key K, ensure bool) error {
 	return nil
 }
 
+// DeleteByValue removes the relation that contains the provided value. If
+// ensure flag is set to true and the value does not exist, ErrNotFound is
+// returned.
 func (a *Association[K, V]) DeleteByValue(value V, ensure bool) error {
 	v, err := a.definition.valueEncoding.Encode(value)
 	if err != nil {
@@ -279,6 +305,7 @@ func (a *Association[K, V]) DeleteByValue(value V, ensure bool) error {
 	return nil
 }
 
+// Iterate iterates over keys and values in the lexicographical order of keys.
 func (a *Association[K, V]) Iterate(start *K, reverse bool, f func(K, V) (bool, error)) (next *K, err error) {
 	keysBucket, err := a.keysBucket(false)
 	if err != nil {
@@ -302,6 +329,7 @@ func (a *Association[K, V]) Iterate(start *K, reverse bool, f func(K, V) (bool, 
 	})
 }
 
+// IterateKeys iterates over keys in the lexicographical order of keys.
 func (a *Association[K, V]) IterateKeys(start *K, reverse bool, f func(K) (bool, error)) (next *K, err error) {
 	keysBucket, err := a.keysBucket(false)
 	if err != nil {
@@ -320,6 +348,7 @@ func (a *Association[K, V]) IterateKeys(start *K, reverse bool, f func(K) (bool,
 	})
 }
 
+// IterateValues iterates over values in the lexicographical order of values.
 func (a *Association[K, V]) IterateValues(start *V, reverse bool, f func(V) (bool, error)) (next *V, err error) {
 	valuesBucket, err := a.valuesBucket(false)
 	if err != nil {
@@ -338,6 +367,8 @@ func (a *Association[K, V]) IterateValues(start *V, reverse bool, f func(V) (boo
 	})
 }
 
+// Page returns at most a limit of elements of keys and values at the provided
+// page number.
 func (a *Association[K, V]) Page(number, limit int, reverse bool) (s []Element[K, V], totalElements, pages int, err error) {
 	keysBucket, err := a.keysBucket(false)
 	if err != nil {
@@ -361,6 +392,7 @@ func (a *Association[K, V]) Page(number, limit int, reverse bool) (s []Element[K
 	})
 }
 
+// PageOfKeys returns at most a limit of keys at the provided page number.
 func (a *Association[K, V]) PageOfKeys(number, limit int, reverse bool) (s []K, totalElements, pages int, err error) {
 	keysBucket, err := a.keysBucket(false)
 	if err != nil {
@@ -374,6 +406,7 @@ func (a *Association[K, V]) PageOfKeys(number, limit int, reverse bool) (s []K, 
 	})
 }
 
+// PageOfValues returns at most a limit of values at the provided page number.
 func (a *Association[K, V]) PageOfValues(number, limit int, reverse bool) (s []V, totalElements, pages int, err error) {
 	valuesBucket, err := a.valuesBucket(false)
 	if err != nil {

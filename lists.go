@@ -13,6 +13,8 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
+// ListsDefinition defines a set of Lists, each identified by an unique key. All
+// lists have the same value and order by encodings.
 type ListsDefinition[K, V, O any] struct {
 	bucketNameLists   []byte
 	bucketNameIndexes []byte
@@ -26,13 +28,21 @@ type ListsDefinition[K, V, O any] struct {
 	errValueExists    error
 }
 
+// ListsOptions provides additional configuration for a Lists instance.
 type ListsOptions struct {
-	UniqueValues     bool
-	ErrListNotFound  error
+	// UniqueValues marks if a value can be added only to a single list.
+	UniqueValues bool
+	// ErrListNotFound is returned if the list identified by the key is not found.
+	ErrListNotFound error
+	// ErrValueNotFound is returned if the value is not found.
 	ErrValueNotFound error
-	ErrValueExists   error
+	// ErrValueExists is returned if the value already exists and it is not
+	// allowed to be overwritten.
+	ErrValueExists error
 }
 
+// NewListsDefinition constructs a new ListsDefinition with a unique
+// name and key, value and order by encodings.
 func NewListsDefinition[K, V, O any](
 	name string,
 	keyEncoding Encoding[K],
@@ -57,6 +67,8 @@ func NewListsDefinition[K, V, O any](
 	}
 }
 
+// Lists returns a Lists instance that has access to the stored data through
+// the bolt transaction.
 func (d *ListsDefinition[K, V, O]) Lists(tx *bolt.Tx) *Lists[K, V, O] {
 	return &Lists[K, V, O]{
 		tx:         tx,
@@ -64,6 +76,7 @@ func (d *ListsDefinition[K, V, O]) Lists(tx *bolt.Tx) *Lists[K, V, O] {
 	}
 }
 
+// Lists provides methods to access and change a set of Lists.
 type Lists[K, V, O any] struct {
 	tx                 *bolt.Tx
 	listsBucketCache   *bolt.Bucket
@@ -108,6 +121,9 @@ func (l *Lists[K, V, O]) valuesBucket(create bool) (*bolt.Bucket, error) {
 	return bucket, nil
 }
 
+// List returns a List instance that is associated with the provided key. If the
+// returned value of exists is false, the list still does not exist but it will
+// be created if a value is added to it.
 func (l *Lists[K, V, O]) List(key K) (list *List[V, O], exists bool, err error) {
 	k, err := l.definition.keyEncoding.Encode(key)
 	if err != nil {
@@ -153,6 +169,8 @@ func (l *Lists[K, V, O]) List(key K) (list *List[V, O], exists bool, err error) 
 	}, exists, nil
 }
 
+// HasList returns true if the List associated with the key already exists in
+// the database.
 func (l *Lists[K, V, O]) HasList(key K) (bool, error) {
 	k, err := l.definition.keyEncoding.Encode(key)
 	if err != nil {
@@ -170,6 +188,7 @@ func (l *Lists[K, V, O]) HasList(key K) (bool, error) {
 	return listsBucket.Bucket(k) != nil, nil
 }
 
+// HasValue returns true if the value already exists in any List.
 func (l *Lists[K, V, O]) HasValue(value V) (bool, error) {
 	v, err := l.definition.valueEncoding.Encode(value)
 	if err != nil {
@@ -187,6 +206,8 @@ func (l *Lists[K, V, O]) HasValue(value V) (bool, error) {
 	return valuesBucket.Bucket(v) != nil, nil
 }
 
+// DeleteList removes the list from the database. If ensure flag is set to true
+// and the value does not exist, configured ErrListNotFound is returned.
 func (l *Lists[K, V, O]) DeleteList(key K, ensure bool) error {
 	k, err := l.definition.keyEncoding.Encode(key)
 	if err != nil {
@@ -199,7 +220,7 @@ func (l *Lists[K, V, O]) DeleteList(key K, ensure bool) error {
 	}
 	if listsBucket == nil {
 		if ensure {
-			return l.definition.errValueNotFound
+			return l.definition.errListNotFound
 		}
 		return nil
 	}
@@ -207,7 +228,7 @@ func (l *Lists[K, V, O]) DeleteList(key K, ensure bool) error {
 	listBucket := listsBucket.Bucket(k)
 	if listBucket == nil {
 		if ensure {
-			return l.definition.errValueNotFound
+			return l.definition.errListNotFound
 		}
 		return nil
 	}
@@ -265,6 +286,9 @@ func (l *Lists[K, V, O]) DeleteList(key K, ensure bool) error {
 	return nil
 }
 
+// DeleteValue removes the value from all lists that contain it. If ensure flag
+// is set to true and the value does not exist, configured ErrValueNotFound is
+// returned.
 func (l *Lists[K, V, O]) DeleteValue(value V, ensure bool) error {
 	v, err := l.definition.valueEncoding.Encode(value)
 	if err != nil {
@@ -321,6 +345,7 @@ func (l *Lists[K, V, O]) DeleteValue(value V, ensure bool) error {
 	return nil
 }
 
+// IterateLists iterates over List keys in the lexicographical order of keys.
 func (l *Lists[K, V, O]) IterateLists(start *K, reverse bool, f func(K) (bool, error)) (next *K, err error) {
 	listsBucket, err := l.listsBucket(false)
 	if err != nil {
@@ -339,6 +364,7 @@ func (l *Lists[K, V, O]) IterateLists(start *K, reverse bool, f func(K) (bool, e
 	})
 }
 
+// PageOfLists returns at most a limit of List keys at the provided page number.
 func (l *Lists[K, V, O]) PageOfLists(number, limit int, reverse bool) (s []K, totalElements, pages int, err error) {
 	listsBucket, err := l.listsBucket(false)
 	if err != nil {
@@ -352,6 +378,8 @@ func (l *Lists[K, V, O]) PageOfLists(number, limit int, reverse bool) (s []K, to
 	})
 }
 
+// IterateListsWithValue iterates over List keys that contian the provided value
+// in the lexicographical order of keys.
 func (l *Lists[K, V, O]) IterateListsWithValue(value V, start *K, reverse bool, f func(K) (bool, error)) (next *K, err error) {
 	v, err := l.definition.valueEncoding.Encode(value)
 	if err != nil {
@@ -378,6 +406,8 @@ func (l *Lists[K, V, O]) IterateListsWithValue(value V, start *K, reverse bool, 
 	})
 }
 
+// PageOfListsWithValue returns at most a limit of List keys that contian the
+// provided value at the provided page number.
 func (l *Lists[K, V, O]) PageOfListsWithValue(value V, number, limit int, reverse bool) (s []K, totalElements, pages int, err error) {
 	v, err := l.definition.valueEncoding.Encode(value)
 	if err != nil {
@@ -399,6 +429,7 @@ func (l *Lists[K, V, O]) PageOfListsWithValue(value V, number, limit int, revers
 	})
 }
 
+// IterateValues iterates over all values in the lexicographical order of values.
 func (l *Lists[K, V, O]) IterateValues(start *V, reverse bool, f func(V) (bool, error)) (next *V, err error) {
 	valuesBucket, err := l.valuesBucket(false)
 	if err != nil {
@@ -417,6 +448,7 @@ func (l *Lists[K, V, O]) IterateValues(start *V, reverse bool, f func(V) (bool, 
 	})
 }
 
+// PageOfValues returns at most a limit of values at the provided page number.
 func (l *Lists[K, V, O]) PageOfValues(number, limit int, reverse bool) (s []V, totalElements, pages int, err error) {
 	valuesBucket, err := l.valuesBucket(false)
 	if err != nil {

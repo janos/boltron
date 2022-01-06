@@ -5,6 +5,15 @@
 
 // Package boltron provides type safe generic constructs to design data models
 // using BoltDB embedded key value store.
+//
+// Definitions statically define encodings and options for other types to be
+// serialized and they provide methods to access and modify serialized data
+// within bolt transactions.
+//
+// There are three basic types with their definitions: Collection, Association
+// and List.
+//
+// One complex type Lists provides methods to manage dynamically created lists.
 package boltron
 
 import (
@@ -15,7 +24,7 @@ import (
 )
 
 // Element is the type returned by pagination methods as slice elements that
-// cointain both key an value.
+// cointain both key and value.
 type Element[K, V any] struct {
 	Key   K
 	Value V

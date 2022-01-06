@@ -12,17 +12,19 @@ import (
 	"time"
 )
 
+// Encoding defines serialization of any type to and from bytes representation.
 type Encoding[T any] interface {
 	Encode(T) ([]byte, error)
 	Decode([]byte) (T, error)
 }
 
-// Encoding defines serialization of any type to an from bytes representation.
+// EncodingFunc is a helper type to construct Encoding from two existing functions.
 type EncodingFunc[T any] struct {
 	encodeFunc func(T) ([]byte, error)
 	decodeFunc func([]byte) (T, error)
 }
 
+// NewEncoding returns Encoding from two functions that define it.
 func NewEncoding[T any](
 	encode func(T) ([]byte, error),
 	decode func([]byte) (T, error),
@@ -33,10 +35,12 @@ func NewEncoding[T any](
 	}
 }
 
+// Encode serializes an instance of certain type to its bytes representation.
 func (e *EncodingFunc[T]) Encode(t T) ([]byte, error) {
 	return e.encodeFunc(t)
 }
 
+// Decode deserializes a slice of bytes into an instance of a specific type.
 func (e *EncodingFunc[T]) Decode(b []byte) (T, error) {
 	return e.decodeFunc(b)
 }
@@ -49,6 +53,19 @@ var (
 		},
 		func(b []byte) (string, error) {
 			return string(b), nil
+		},
+	)
+
+	// StringNaturalOrderEncoding encodes string to be case insensitive and
+	// numerically sorted. It takes more than a double space to store the value
+	// as it keeps it in the original form in bas64 encoding alongside the
+	// encoded form.
+	StringNaturalOrderEncoding = NewEncoding(
+		func(v string) ([]byte, error) {
+			return encodeNatural(v), nil
+		},
+		func(b []byte) (string, error) {
+			return decodeNatural(b)
 		},
 	)
 
@@ -112,7 +129,7 @@ var (
 	)
 
 	// NullEncoding always produces a nil byte slice and nul Null value. It is
-	// suitable to be used as OrderBy encoding in lists if order is determened
+	// suitable to be used as OrderBy encoding in lists if order is determined
 	// by list's values encoding.
 	NullEncoding = NewEncoding(
 		func(*struct{}) ([]byte, error) {

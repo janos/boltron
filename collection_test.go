@@ -80,9 +80,9 @@ func TestCollection_singleRecord(t *testing.T) {
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
 		records := recordsDefinition.Collection(tx)
 
-		overwriten, err := records.Save(r.ID, r, false)
+		overwritten, err := records.Save(r.ID, r, false)
 		assertFail(t, "", err, nil)
-		assert(t, "", overwriten, false)
+		assert(t, "", overwritten, false)
 
 		v, err := records.Get(r.ID)
 		assertFail(t, "", err, nil)
@@ -135,21 +135,21 @@ func TestCollection_singleRecord(t *testing.T) {
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
 		records := recordsDefinition.Collection(tx)
 
-		overwriten, err := records.Save(r.ID, r, false)
+		overwritten, err := records.Save(r.ID, r, false)
 		assertFail(t, "", err, nil)
-		assert(t, "", overwriten, false)
+		assert(t, "", overwritten, false)
 
-		overwriten, err = records.Save(r.ID, r, false)
+		overwritten, err = records.Save(r.ID, r, false)
 		assertFail(t, "", err, nil)
-		assert(t, "", overwriten, false)
+		assert(t, "", overwritten, false)
 
-		overwriten, err = records.Save(r.ID, r, true)
+		overwritten, err = records.Save(r.ID, r, true)
 		assertFail(t, "", err, nil)
-		assert(t, "", overwriten, false)
+		assert(t, "", overwritten, false)
 
-		overwriten, err = records.Save(r.ID, testRecords[1], false)
+		overwritten, err = records.Save(r.ID, testRecords[1], false)
 		assertFail(t, "", err, boltron.ErrKeyExists)
-		assert(t, "", overwriten, false)
+		assert(t, "", overwritten, false)
 	})
 }
 
@@ -618,9 +618,9 @@ func newRecordsDB(t testing.TB) *bolt.DB {
 		records := recordsDefinition.Collection(tx)
 
 		for _, r := range testRecords {
-			overwriten, err := records.Save(r.ID, r, false)
+			overwritten, err := records.Save(r.ID, r, false)
 			assertFail(t, "", err, nil)
-			assert(t, "", overwriten, false)
+			assert(t, "", overwritten, false)
 		}
 	})
 

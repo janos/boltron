@@ -90,12 +90,12 @@ func TestList(t *testing.T) {
 	})
 
 	value := testTodo[2].Value
-	updetedTime := testTodo[2].Time.Add(10 * time.Minute)
+	updatedTime := testTodo[2].Time.Add(10 * time.Minute)
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
 		todo := todoDefinition.List(tx)
 
-		err := todo.Add(value, updetedTime)
+		err := todo.Add(value, updatedTime)
 		assertFail(t, "", err, nil)
 
 		err = todo.Remove("missing1", false)
@@ -114,7 +114,7 @@ func TestList(t *testing.T) {
 
 		orderBy, err := todo.OrderBy(value)
 		assertFail(t, "", err, nil)
-		assertTime(t, "", orderBy, updetedTime)
+		assertTime(t, "", orderBy, updatedTime)
 	})
 }
 

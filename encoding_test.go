@@ -6,6 +6,8 @@
 package boltron_test
 
 import (
+	"encoding/base64"
+	"encoding/binary"
 	"fmt"
 	"math"
 	"testing"
@@ -15,7 +17,7 @@ import (
 )
 
 func TestStringEncoding(t *testing.T) {
-	tableTestStringEncoding(t, boltron.StringEncoding, []struct {
+	tableTestEncoding(t, boltron.StringEncoding, []struct {
 		value   string
 		encoded []byte
 	}{
@@ -25,8 +27,41 @@ func TestStringEncoding(t *testing.T) {
 	})
 }
 
+func TestStringNaturalOrderEncoding(t *testing.T) {
+
+	encodedValue := func(part1, part2 string) []byte {
+		var out []byte
+		out = append(out, []byte(part1)...)
+		out = append(out, 0, 0, 0, 0)
+		out = append(out, []byte(base64.StdEncoding.EncodeToString([]byte(part2)))...)
+		return out
+	}
+
+	encodeBigEndian := func(v uint64) string {
+		b := make([]byte, 8)
+		binary.BigEndian.PutUint64(b, v)
+		return string(b)
+	}
+
+	tableTestEncoding(t, boltron.StringNaturalOrderEncoding, []struct {
+		value   string
+		encoded []byte
+	}{
+		{"", encodedValue("", "")},
+		{"test", encodedValue("test", "test")},
+		{"💥", encodedValue("💥", "💥")},
+		{"0", encodedValue(encodeBigEndian(0), "0")},
+		{"1", encodedValue(encodeBigEndian(1), "1")},
+		{"a1", encodedValue("a"+encodeBigEndian(1), "a1")},
+		{"1a", encodedValue(encodeBigEndian(1)+"a", "1a")},
+		{"00001a", encodedValue(encodeBigEndian(1)+"a", "00001a")},
+		{"te2st", encodedValue("te"+encodeBigEndian(2)+"st", "te2st")},
+		{"Te 0020世界 st", encodedValue("te "+encodeBigEndian(20)+"世界 st", "Te 0020世界 st")},
+	})
+}
+
 func TestUint64BinaryEncoding(t *testing.T) {
-	tableTestStringEncoding(t, boltron.Uint64BinaryEncoding, []struct {
+	tableTestEncoding(t, boltron.Uint64BinaryEncoding, []struct {
 		value   uint64
 		encoded []byte
 	}{
@@ -37,7 +72,7 @@ func TestUint64BinaryEncoding(t *testing.T) {
 }
 
 func TestIntBase10Encoding(t *testing.T) {
-	tableTestStringEncoding(t, boltron.IntBase10Encoding, []struct {
+	tableTestEncoding(t, boltron.IntBase10Encoding, []struct {
 		value   int
 		encoded []byte
 	}{
@@ -50,7 +85,7 @@ func TestIntBase10Encoding(t *testing.T) {
 }
 
 func TestInt64Base36Encoding(t *testing.T) {
-	tableTestStringEncoding(t, boltron.Int64Base36Encoding, []struct {
+	tableTestEncoding(t, boltron.Int64Base36Encoding, []struct {
 		value   int64
 		encoded []byte
 	}{
@@ -63,7 +98,7 @@ func TestInt64Base36Encoding(t *testing.T) {
 }
 
 func TestUint64Base36Encoding(t *testing.T) {
-	tableTestStringEncoding(t, boltron.Uint64Base36Encoding, []struct {
+	tableTestEncoding(t, boltron.Uint64Base36Encoding, []struct {
 		value   uint64
 		encoded []byte
 	}{
@@ -75,7 +110,7 @@ func TestUint64Base36Encoding(t *testing.T) {
 }
 
 func TestTimeEncoding(t *testing.T) {
-	tableTestStringEncoding(t, boltron.TimeEncoding, []struct {
+	tableTestEncoding(t, boltron.TimeEncoding, []struct {
 		value   time.Time
 		encoded []byte
 	}{
@@ -87,7 +122,7 @@ func TestTimeEncoding(t *testing.T) {
 }
 
 func TestNullEncoding(t *testing.T) {
-	tableTestStringEncoding(t, boltron.NullEncoding, []struct {
+	tableTestEncoding(t, boltron.NullEncoding, []struct {
 		value   *struct{}
 		encoded []byte
 	}{
@@ -95,7 +130,7 @@ func TestNullEncoding(t *testing.T) {
 	})
 }
 
-func tableTestStringEncoding[T any](t *testing.T, encoding boltron.Encoding[T], table []struct {
+func tableTestEncoding[T any](t *testing.T, encoding boltron.Encoding[T], table []struct {
 	value   T
 	encoded []byte
 }) {
