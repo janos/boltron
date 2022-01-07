@@ -113,8 +113,8 @@ func (c *Collections[C, K, V]) keysBucket(create bool) (*bolt.Bucket, error) {
 // Collections returns a Collections instance that is associated with the provided collection key. If the
 // returned value of exists is false, the collection still does not exist but it will
 // be created if a key/value pair is saved to it.
-func (c *Collections[C, K, V]) Collection(key K) (collection *Collection[K, V], exists bool, err error) {
-	k, err := c.definition.keyEncoding.Encode(key)
+func (c *Collections[C, K, V]) Collection(key C) (collection *Collection[K, V], exists bool, err error) {
+	k, err := c.definition.collectionKeyEncoding.Encode(key)
 	if err != nil {
 		return nil, false, fmt.Errorf("encode key: %w", err)
 	}
@@ -231,16 +231,16 @@ func (c *Collections[C, K, V]) DeleteCollection(key C, ensure bool) error {
 		return errors.New("keys bucket does not exist")
 	}
 
-	if err := keysBucket.ForEach(func(k, _ []byte) error {
+	if err := collectionBucket.ForEach(func(k, _ []byte) error {
 		keyBucket := keysBucket.Bucket(k)
 		if keyBucket == nil {
 			return nil
 		}
-		if keyBucket.Get(k) == nil {
+		if keyBucket.Get(ck) == nil {
 			return nil
 		}
-		if err := keyBucket.Delete(k); err != nil {
-			return fmt.Errorf("delete key from key bucket: %w", err)
+		if err := keyBucket.Delete(ck); err != nil {
+			return fmt.Errorf("delete collection key from key bucket: %w", err)
 		}
 		if keyBucket.Stats().KeyN == 1 { // stats are updated after the transaction
 			if err := keysBucket.DeleteBucket(k); err != nil {
@@ -252,7 +252,7 @@ func (c *Collections[C, K, V]) DeleteCollection(key C, ensure bool) error {
 		return fmt.Errorf("delete key in keys buckets: %w", err)
 	}
 
-	if err := collectionBucket.DeleteBucket(ck); err != nil {
+	if err := collectionsBucket.DeleteBucket(ck); err != nil {
 		return fmt.Errorf("delete key: %w", err)
 	}
 
