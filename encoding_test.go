@@ -204,7 +204,7 @@ func TestProxiedJSONEncoding(t *testing.T) {
 	})
 }
 
-func BenchmarkProxiedJSONEncoding(b *testing.B) {
+func BenchmarkJSONEncodings(b *testing.B) {
 
 	type record struct {
 		Value  string
@@ -217,6 +217,8 @@ func BenchmarkProxiedJSONEncoding(b *testing.B) {
 		ID     int    `json:"i,omitempty"`
 		Option any    `json:"o,omitempty"`
 	}
+
+	directEncoding := boltron.NewJSONEncoding[*record]()
 
 	proxiedEncoding := boltron.NewProxiedJSONEncoding(
 		func(r *record) *proxy {
@@ -244,6 +246,30 @@ func BenchmarkProxiedJSONEncoding(b *testing.B) {
 
 	var encoded []byte
 	var decoded *record
+
+	b.Run("NewJSONEncoding_encode", func(b *testing.B) {
+		for n := 0; n < b.N; n++ {
+			data, err := directEncoding.Encode(r)
+			if err != nil {
+				b.Fatal(err)
+			}
+			encoded = data
+		}
+	})
+
+	b.Run("NewJSONEncoding_decode", func(b *testing.B) {
+		for n := 0; n < b.N; n++ {
+			v, err := directEncoding.Decode(encoded)
+			if err != nil {
+				b.Fatal(err)
+			}
+			decoded = v
+		}
+	})
+
+	if !reflect.DeepEqual(decoded, r) {
+		b.Errorf("got %v, want %v", decoded, r)
+	}
 
 	b.Run("NewProxiedJSONEncoding_encode", func(b *testing.B) {
 		for n := 0; n < b.N; n++ {
