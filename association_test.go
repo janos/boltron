@@ -6,6 +6,7 @@
 package boltron_test
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
@@ -58,35 +59,43 @@ func TestAssociation_singleRelation(t *testing.T) {
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
 		numbers := numbersDefinition.Association(tx)
 
-		err := numbers.Set(key, value)
-		assertFail(t, "", err, nil)
+		hasKey, err := numbers.HasKey("missing")
+		assertErrorFail(t, "", err, nil)
+		assert(t, "", hasKey, false)
+
+		hasValue, err := numbers.HasValue(2)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "", hasValue, false)
+
+		err = numbers.Set(key, value)
+		assertErrorFail(t, "", err, nil)
 	})
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
 		numbers := numbersDefinition.Association(tx)
 
 		hasKey, err := numbers.HasKey(key)
-		assertFail(t, "", err, nil)
+		assertErrorFail(t, "", err, nil)
 		assert(t, "", hasKey, true)
 
 		hasValue, err := numbers.HasValue(value)
-		assertFail(t, "", err, nil)
+		assertErrorFail(t, "", err, nil)
 		assert(t, "", hasValue, true)
 
 		hasKey, err = numbers.HasKey("missing")
-		assertFail(t, "", err, nil)
+		assertErrorFail(t, "", err, nil)
 		assert(t, "", hasKey, false)
 
 		hasValue, err = numbers.HasValue(2)
-		assertFail(t, "", err, nil)
+		assertErrorFail(t, "", err, nil)
 		assert(t, "", hasValue, false)
 
 		v, err := numbers.Value(key)
-		assertFail(t, "", err, nil)
+		assertErrorFail(t, "", err, nil)
 		assert(t, "", v, value)
 
 		k, err := numbers.Key(value)
-		assertFail(t, "", err, nil)
+		assertErrorFail(t, "", err, nil)
 		assert(t, "", k, key)
 	})
 
@@ -94,14 +103,14 @@ func TestAssociation_singleRelation(t *testing.T) {
 		numbers := numbersDefinition.Association(tx)
 
 		err := numbers.DeleteByKey(key, true)
-		assertFail(t, "", err, nil)
+		assertErrorFail(t, "", err, nil)
 
 		hasKey, err := numbers.HasKey(key)
-		assertFail(t, "", err, nil)
+		assertErrorFail(t, "", err, nil)
 		assert(t, "", hasKey, false)
 
 		hasValue, err := numbers.HasValue(value)
-		assertFail(t, "", err, nil)
+		assertErrorFail(t, "", err, nil)
 		assert(t, "", hasValue, false)
 	})
 
@@ -109,33 +118,33 @@ func TestAssociation_singleRelation(t *testing.T) {
 		numbers := numbersDefinition.Association(tx)
 
 		hasKey, err := numbers.HasKey(key)
-		assertFail(t, "", err, nil)
+		assertErrorFail(t, "", err, nil)
 		assert(t, "", hasKey, false)
 
 		hasValue, err := numbers.HasValue(value)
-		assertFail(t, "", err, nil)
+		assertErrorFail(t, "", err, nil)
 		assert(t, "", hasValue, false)
 
 		err = numbers.Set(key, value)
-		assertFail(t, "", err, nil)
+		assertErrorFail(t, "", err, nil)
 
 		hasKey, err = numbers.HasKey(key)
-		assertFail(t, "", err, nil)
+		assertErrorFail(t, "", err, nil)
 		assert(t, "", hasKey, true)
 
 		hasValue, err = numbers.HasValue(value)
-		assertFail(t, "", err, nil)
+		assertErrorFail(t, "", err, nil)
 		assert(t, "", hasValue, true)
 
 		err = numbers.DeleteByValue(value, true)
-		assertFail(t, "", err, nil)
+		assertErrorFail(t, "", err, nil)
 
 		hasKey, err = numbers.HasKey(key)
-		assertFail(t, "", err, nil)
+		assertErrorFail(t, "", err, nil)
 		assert(t, "", hasKey, false)
 
 		hasValue, err = numbers.HasValue(value)
-		assertFail(t, "", err, nil)
+		assertErrorFail(t, "", err, nil)
 		assert(t, "", hasValue, false)
 	})
 
@@ -143,17 +152,17 @@ func TestAssociation_singleRelation(t *testing.T) {
 		numbers := numbersDefinition.Association(tx)
 
 		err := numbers.Set(key, value)
-		assertFail(t, "", err, nil)
+		assertErrorFail(t, "", err, nil)
 
 		err = numbers.Set(key, value)
-		assertFail(t, "", err, nil)
+		assertErrorFail(t, "", err, nil)
 
 		hasKey, err := numbers.HasKey(key)
-		assertFail(t, "", err, nil)
+		assertErrorFail(t, "", err, nil)
 		assert(t, "", hasKey, true)
 
 		hasValue, err := numbers.HasValue(value)
-		assertFail(t, "", err, nil)
+		assertErrorFail(t, "", err, nil)
 		assert(t, "", hasValue, true)
 	})
 }
@@ -173,7 +182,7 @@ func TestAssociation_iterate(t *testing.T) {
 
 				return true, nil
 			})
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", next, nil)
 		})
 	})
@@ -193,7 +202,7 @@ func TestAssociation_iterate(t *testing.T) {
 				}
 				return true, nil
 			})
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", *next, "six")
 
 			next, err = numbers.Iterate(next, false, func(k string, v int) (bool, error) {
@@ -202,7 +211,7 @@ func TestAssociation_iterate(t *testing.T) {
 				i++
 				return true, nil
 			})
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", next, nil)
 		})
 	})
@@ -219,7 +228,7 @@ func TestAssociation_iterate(t *testing.T) {
 
 				return true, nil
 			})
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", next, nil)
 		})
 	})
@@ -239,7 +248,7 @@ func TestAssociation_iterate(t *testing.T) {
 				}
 				return true, nil
 			})
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", *next, "one")
 
 			next, err = numbers.Iterate(next, true, func(k string, v int) (bool, error) {
@@ -248,8 +257,25 @@ func TestAssociation_iterate(t *testing.T) {
 				i++
 				return true, nil
 			})
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", next, nil)
+		})
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		db := newDB(t)
+
+		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+			numbers := numbersDefinition.Association(tx)
+
+			var count int
+			next, err := numbers.Iterate(nil, false, func(_ string, _ int) (bool, error) {
+				count++
+				return true, nil
+			})
+			assertErrorFail(t, "", err, nil)
+			assert(t, "", next, nil)
+			assert(t, "", count, 0)
 		})
 	})
 }
@@ -268,7 +294,7 @@ func TestAssociation_iterateKeys(t *testing.T) {
 
 				return true, nil
 			})
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", next, nil)
 		})
 	})
@@ -287,7 +313,7 @@ func TestAssociation_iterateKeys(t *testing.T) {
 				}
 				return true, nil
 			})
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", *next, "six")
 
 			next, err = numbers.IterateKeys(next, false, func(k string) (bool, error) {
@@ -295,7 +321,7 @@ func TestAssociation_iterateKeys(t *testing.T) {
 				i++
 				return true, nil
 			})
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", next, nil)
 		})
 	})
@@ -311,7 +337,7 @@ func TestAssociation_iterateKeys(t *testing.T) {
 
 				return true, nil
 			})
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", next, nil)
 		})
 	})
@@ -330,7 +356,7 @@ func TestAssociation_iterateKeys(t *testing.T) {
 				}
 				return true, nil
 			})
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", *next, "one")
 
 			next, err = numbers.IterateKeys(next, true, func(k string) (bool, error) {
@@ -338,8 +364,25 @@ func TestAssociation_iterateKeys(t *testing.T) {
 				i++
 				return true, nil
 			})
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", next, nil)
+		})
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		db := newDB(t)
+
+		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+			numbers := numbersDefinition.Association(tx)
+
+			var count int
+			next, err := numbers.IterateKeys(nil, false, func(_ string) (bool, error) {
+				count++
+				return true, nil
+			})
+			assertErrorFail(t, "", err, nil)
+			assert(t, "", next, nil)
+			assert(t, "", count, 0)
 		})
 	})
 }
@@ -358,7 +401,7 @@ func TestAssociation_iterateValues(t *testing.T) {
 
 				return true, nil
 			})
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", next, nil)
 		})
 	})
@@ -377,7 +420,7 @@ func TestAssociation_iterateValues(t *testing.T) {
 				}
 				return true, nil
 			})
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", *next, 5)
 
 			next, err = numbers.IterateValues(next, false, func(v int) (bool, error) {
@@ -385,7 +428,7 @@ func TestAssociation_iterateValues(t *testing.T) {
 				i++
 				return true, nil
 			})
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", next, nil)
 		})
 	})
@@ -401,7 +444,7 @@ func TestAssociation_iterateValues(t *testing.T) {
 
 				return true, nil
 			})
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", next, nil)
 		})
 	})
@@ -420,7 +463,7 @@ func TestAssociation_iterateValues(t *testing.T) {
 				}
 				return true, nil
 			})
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", *next, 3)
 
 			next, err = numbers.IterateValues(next, true, func(v int) (bool, error) {
@@ -428,8 +471,25 @@ func TestAssociation_iterateValues(t *testing.T) {
 				i++
 				return true, nil
 			})
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", next, nil)
+		})
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		db := newDB(t)
+
+		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+			numbers := numbersDefinition.Association(tx)
+
+			var count int
+			next, err := numbers.IterateValues(nil, false, func(_ int) (bool, error) {
+				count++
+				return true, nil
+			})
+			assertErrorFail(t, "", err, nil)
+			assert(t, "", next, nil)
+			assert(t, "", count, 0)
 		})
 	})
 }
@@ -442,25 +502,25 @@ func TestAssociation_page(t *testing.T) {
 			numbers := numbersDefinition.Association(tx)
 
 			_, _, _, err := numbers.Page(-1, 3, false)
-			assertFail(t, "", err, boltron.ErrInvalidPageNumber)
+			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
 
 			_, _, _, err = numbers.Page(0, 3, false)
-			assertFail(t, "", err, boltron.ErrInvalidPageNumber)
+			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
 
 			page, totalElements, totalPages, err := numbers.Page(1, 3, false)
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", page, numberElements(0, 1, 2))
 			assert(t, "", totalElements, 7)
 			assert(t, "", totalPages, 3)
 
 			page, totalElements, totalPages, err = numbers.Page(2, 3, false)
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", page, numberElements(3, 4, 5))
 			assert(t, "", totalElements, 7)
 			assert(t, "", totalPages, 3)
 
 			page, totalElements, totalPages, err = numbers.Page(3, 3, false)
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", page, numberElements(6))
 			assert(t, "", totalElements, 7)
 			assert(t, "", totalPages, 3)
@@ -472,28 +532,42 @@ func TestAssociation_page(t *testing.T) {
 			numbers := numbersDefinition.Association(tx)
 
 			_, _, _, err := numbers.Page(-1, 3, true)
-			assertFail(t, "", err, boltron.ErrInvalidPageNumber)
+			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
 
 			_, _, _, err = numbers.Page(0, 3, true)
-			assertFail(t, "", err, boltron.ErrInvalidPageNumber)
+			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
 
 			page, totalElements, totalPages, err := numbers.Page(1, 3, true)
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", page, numberElements(6, 5, 4))
 			assert(t, "", totalElements, 7)
 			assert(t, "", totalPages, 3)
 
 			page, totalElements, totalPages, err = numbers.Page(2, 3, true)
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", page, numberElements(3, 2, 1))
 			assert(t, "", totalElements, 7)
 			assert(t, "", totalPages, 3)
 
 			page, totalElements, totalPages, err = numbers.Page(3, 3, true)
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", page, numberElements(0))
 			assert(t, "", totalElements, 7)
 			assert(t, "", totalPages, 3)
+		})
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		db := newDB(t)
+
+		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+			numbers := numbersDefinition.Association(tx)
+
+			page, totalElements, totalPages, err := numbers.Page(1, 3, true)
+			assertErrorFail(t, "", err, nil)
+			assert(t, "", page, nil)
+			assert(t, "", totalElements, 0)
+			assert(t, "", totalPages, 0)
 		})
 	})
 }
@@ -506,25 +580,25 @@ func TestAssociation_pageOfKeys(t *testing.T) {
 			numbers := numbersDefinition.Association(tx)
 
 			_, _, _, err := numbers.PageOfKeys(-1, 3, false)
-			assertFail(t, "", err, boltron.ErrInvalidPageNumber)
+			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
 
 			_, _, _, err = numbers.PageOfKeys(0, 3, false)
-			assertFail(t, "", err, boltron.ErrInvalidPageNumber)
+			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
 
 			page, totalElements, totalPages, err := numbers.PageOfKeys(1, 3, false)
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", page, numberKeys(0, 1, 2))
 			assert(t, "", totalElements, 7)
 			assert(t, "", totalPages, 3)
 
 			page, totalElements, totalPages, err = numbers.PageOfKeys(2, 3, false)
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", page, numberKeys(3, 4, 5))
 			assert(t, "", totalElements, 7)
 			assert(t, "", totalPages, 3)
 
 			page, totalElements, totalPages, err = numbers.PageOfKeys(3, 3, false)
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", page, numberKeys(6))
 			assert(t, "", totalElements, 7)
 			assert(t, "", totalPages, 3)
@@ -536,28 +610,42 @@ func TestAssociation_pageOfKeys(t *testing.T) {
 			numbers := numbersDefinition.Association(tx)
 
 			_, _, _, err := numbers.PageOfKeys(-1, 3, true)
-			assertFail(t, "", err, boltron.ErrInvalidPageNumber)
+			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
 
 			_, _, _, err = numbers.PageOfKeys(0, 3, true)
-			assertFail(t, "", err, boltron.ErrInvalidPageNumber)
+			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
 
 			page, totalElements, totalPages, err := numbers.PageOfKeys(1, 3, true)
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", page, numberKeys(6, 5, 4))
 			assert(t, "", totalElements, 7)
 			assert(t, "", totalPages, 3)
 
 			page, totalElements, totalPages, err = numbers.PageOfKeys(2, 3, true)
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", page, numberKeys(3, 2, 1))
 			assert(t, "", totalElements, 7)
 			assert(t, "", totalPages, 3)
 
 			page, totalElements, totalPages, err = numbers.PageOfKeys(3, 3, true)
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", page, numberKeys(0))
 			assert(t, "", totalElements, 7)
 			assert(t, "", totalPages, 3)
+		})
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		db := newDB(t)
+
+		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+			numbers := numbersDefinition.Association(tx)
+
+			page, totalElements, totalPages, err := numbers.PageOfKeys(1, 3, true)
+			assertErrorFail(t, "", err, nil)
+			assert(t, "", page, nil)
+			assert(t, "", totalElements, 0)
+			assert(t, "", totalPages, 0)
 		})
 	})
 }
@@ -570,25 +658,25 @@ func TestAssociation_pageOfValues(t *testing.T) {
 			numbers := numbersDefinition.Association(tx)
 
 			_, _, _, err := numbers.PageOfValues(-1, 3, false)
-			assertFail(t, "", err, boltron.ErrInvalidPageNumber)
+			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
 
 			_, _, _, err = numbers.PageOfValues(0, 3, false)
-			assertFail(t, "", err, boltron.ErrInvalidPageNumber)
+			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
 
 			page, totalElements, totalPages, err := numbers.PageOfValues(1, 3, false)
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", page, numberValues(0, 1, 2))
 			assert(t, "", totalElements, 7)
 			assert(t, "", totalPages, 3)
 
 			page, totalElements, totalPages, err = numbers.PageOfValues(2, 3, false)
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", page, numberValues(3, 4, 5))
 			assert(t, "", totalElements, 7)
 			assert(t, "", totalPages, 3)
 
 			page, totalElements, totalPages, err = numbers.PageOfValues(3, 3, false)
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", page, numberValues(6))
 			assert(t, "", totalElements, 7)
 			assert(t, "", totalPages, 3)
@@ -600,29 +688,262 @@ func TestAssociation_pageOfValues(t *testing.T) {
 			numbers := numbersDefinition.Association(tx)
 
 			_, _, _, err := numbers.PageOfValues(-1, 3, true)
-			assertFail(t, "", err, boltron.ErrInvalidPageNumber)
+			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
 
 			_, _, _, err = numbers.PageOfValues(0, 3, true)
-			assertFail(t, "", err, boltron.ErrInvalidPageNumber)
+			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
 
 			page, totalElements, totalPages, err := numbers.PageOfValues(1, 3, true)
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", page, numberValues(6, 5, 4))
 			assert(t, "", totalElements, 7)
 			assert(t, "", totalPages, 3)
 
 			page, totalElements, totalPages, err = numbers.PageOfValues(2, 3, true)
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", page, numberValues(3, 2, 1))
 			assert(t, "", totalElements, 7)
 			assert(t, "", totalPages, 3)
 
 			page, totalElements, totalPages, err = numbers.PageOfValues(3, 3, true)
-			assertFail(t, "", err, nil)
+			assertErrorFail(t, "", err, nil)
 			assert(t, "", page, numberValues(0))
 			assert(t, "", totalElements, 7)
 			assert(t, "", totalPages, 3)
 		})
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		db := newDB(t)
+
+		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+			numbers := numbersDefinition.Association(tx)
+
+			page, totalElements, totalPages, err := numbers.PageOfValues(1, 3, true)
+			assertErrorFail(t, "", err, nil)
+			assert(t, "", page, nil)
+			assert(t, "", totalElements, 0)
+			assert(t, "", totalPages, 0)
+		})
+	})
+}
+
+func TestAssociation_ErrNotFound(t *testing.T) {
+	db := newDB(t)
+
+	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+		numbers := numbersDefinition.Association(tx)
+
+		v, err := numbers.Key(0)
+		assertError(t, "", err, boltron.ErrNotFound)
+		assert(t, "", v, "")
+
+		has, err := numbers.HasValue(0)
+		assertError(t, "", err, nil)
+		assert(t, "", has, false)
+
+		k, err := numbers.Value("missing")
+		assertError(t, "", err, boltron.ErrNotFound)
+		assert(t, "", k, 0)
+
+		has, err = numbers.HasKey("missing")
+		assertError(t, "", err, nil)
+		assert(t, "", has, false)
+
+		err = numbers.DeleteByKey("missing", true)
+		assertError(t, "", err, boltron.ErrNotFound)
+
+		err = numbers.DeleteByKey("missing", false)
+		assertError(t, "", err, nil)
+
+		err = numbers.DeleteByValue(0, true)
+		assertError(t, "", err, boltron.ErrNotFound)
+
+		err = numbers.DeleteByValue(0, false)
+		assertError(t, "", err, nil)
+	})
+
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		numbers := numbersDefinition.Association(tx)
+
+		err := numbers.Set("one", 1)
+		assertErrorFail(t, "", err, nil)
+	})
+
+	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+		numbers := numbersDefinition.Association(tx)
+
+		v, err := numbers.Key(0)
+		assertError(t, "", err, boltron.ErrNotFound)
+		assert(t, "", v, "")
+
+		has, err := numbers.HasValue(0)
+		assertError(t, "", err, nil)
+		assert(t, "", has, false)
+
+		k, err := numbers.Value("missing")
+		assertError(t, "", err, boltron.ErrNotFound)
+		assert(t, "", k, 0)
+
+		has, err = numbers.HasKey("missing")
+		assertError(t, "", err, nil)
+		assert(t, "", has, false)
+
+		err = numbers.DeleteByKey("missing", true)
+		assertError(t, "", err, boltron.ErrNotFound)
+
+		err = numbers.DeleteByKey("missing", false)
+		assertError(t, "", err, nil)
+
+		err = numbers.DeleteByValue(0, true)
+		assertError(t, "", err, boltron.ErrNotFound)
+
+		err = numbers.DeleteByValue(0, false)
+		assertError(t, "", err, nil)
+	})
+}
+
+func TestAssociation_customErrNotFound(t *testing.T) {
+
+	errNotFoundCustom := errors.New("custom not found error")
+
+	customNumbersDefinition := boltron.NewAssociationDefinition(
+		"numbers",
+		boltron.StringEncoding,
+		boltron.IntBase10Encoding,
+		&boltron.AssociationOptions{
+			ErrNotFound: errNotFoundCustom,
+		},
+	)
+
+	db := newDB(t)
+
+	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+		numbers := customNumbersDefinition.Association(tx)
+
+		v, err := numbers.Key(0)
+		assertError(t, "", err, errNotFoundCustom)
+		assert(t, "", v, "")
+
+		has, err := numbers.HasValue(0)
+		assertError(t, "", err, nil)
+		assert(t, "", has, false)
+
+		k, err := numbers.Value("missing")
+		assertError(t, "", err, errNotFoundCustom)
+		assert(t, "", k, 0)
+
+		has, err = numbers.HasKey("missing")
+		assertError(t, "", err, nil)
+		assert(t, "", has, false)
+
+		err = numbers.DeleteByKey("missing", true)
+		assertError(t, "", err, errNotFoundCustom)
+
+		err = numbers.DeleteByKey("missing", false)
+		assertError(t, "", err, nil)
+
+		err = numbers.DeleteByValue(0, true)
+		assertError(t, "", err, errNotFoundCustom)
+
+		err = numbers.DeleteByValue(0, false)
+		assertError(t, "", err, nil)
+	})
+
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		numbers := customNumbersDefinition.Association(tx)
+
+		err := numbers.Set("one", 1)
+		assertErrorFail(t, "", err, nil)
+	})
+
+	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+		numbers := customNumbersDefinition.Association(tx)
+
+		v, err := numbers.Key(0)
+		assertError(t, "", err, errNotFoundCustom)
+		assert(t, "", v, "")
+
+		has, err := numbers.HasValue(0)
+		assertError(t, "", err, nil)
+		assert(t, "", has, false)
+
+		k, err := numbers.Value("missing")
+		assertError(t, "", err, errNotFoundCustom)
+		assert(t, "", k, 0)
+
+		has, err = numbers.HasKey("missing")
+		assertError(t, "", err, nil)
+		assert(t, "", has, false)
+
+		err = numbers.DeleteByKey("missing", true)
+		assertError(t, "", err, errNotFoundCustom)
+
+		err = numbers.DeleteByKey("missing", false)
+		assertError(t, "", err, nil)
+
+		err = numbers.DeleteByValue(0, true)
+		assertError(t, "", err, errNotFoundCustom)
+
+		err = numbers.DeleteByValue(0, false)
+		assertError(t, "", err, nil)
+	})
+}
+
+func TestAssociation_ErrKeyExists_and_ErrValueExists(t *testing.T) {
+
+	db := newDB(t)
+
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		numbers := numbersDefinition.Association(tx)
+
+		err := numbers.Set("one", 1)
+		assertErrorFail(t, "", err, nil)
+
+		err = numbers.Set("one", 2)
+		assertErrorFail(t, "", err, boltron.ErrKeyExists)
+
+		err = numbers.Set("two", 1)
+		assertErrorFail(t, "", err, boltron.ErrValueExists)
+
+		// no overwrite as values are the same
+		err = numbers.Set("one", 1)
+		assertErrorFail(t, "", err, nil)
+	})
+}
+
+func TestAssociation_customErrKeyExists_and_customErrValueExists(t *testing.T) {
+
+	errKeyExistsCustom := errors.New("custom key exists error")
+	errValueExistsCustom := errors.New("custom value exists error")
+
+	customNumbersDefinition := boltron.NewAssociationDefinition(
+		"numbers",
+		boltron.StringEncoding,
+		boltron.IntBase10Encoding,
+		&boltron.AssociationOptions{
+			ErrKeyExists:   errKeyExistsCustom,
+			ErrValueExists: errValueExistsCustom,
+		},
+	)
+
+	db := newDB(t)
+
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		numbers := customNumbersDefinition.Association(tx)
+
+		err := numbers.Set("one", 1)
+		assertErrorFail(t, "", err, nil)
+
+		err = numbers.Set("one", 2)
+		assertErrorFail(t, "", err, errKeyExistsCustom)
+
+		err = numbers.Set("two", 1)
+		assertErrorFail(t, "", err, errValueExistsCustom)
+
+		// no overwrite as values are the same
+		err = numbers.Set("one", 1)
+		assertErrorFail(t, "", err, nil)
 	})
 }
 
@@ -636,7 +957,7 @@ func newNumbersDB(t testing.TB) *bolt.DB {
 
 		for _, n := range testNumbers {
 			err := numbers.Set(n.K, n.V)
-			assertFail(t, fmt.Sprintf("%+v", n), err, nil)
+			assertErrorFail(t, fmt.Sprintf("%+v", n), err, nil)
 		}
 	})
 

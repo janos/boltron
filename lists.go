@@ -314,14 +314,26 @@ func (l *Lists[K, V, O]) DeleteValue(value V, ensure bool) error {
 		return nil
 	}
 
-	listsBucket, err := l.listsBucket(true)
+	listsBucket, err := l.listsBucket(false)
 	if err != nil {
 		return fmt.Errorf("lists bucket: %w", err)
 	}
+	if listsBucket == nil {
+		if ensure {
+			return l.definition.errListNotFound
+		}
+		return nil
+	}
 
-	indexesBucket, err := l.indexesBucket(true)
+	indexesBucket, err := l.indexesBucket(false)
 	if err != nil {
 		return fmt.Errorf("bucket: %w", err)
+	}
+	if indexesBucket == nil {
+		if ensure {
+			return l.definition.errListNotFound
+		}
+		return nil
 	}
 
 	list := (&ListDefinition[V, O]{
@@ -335,7 +347,7 @@ func (l *Lists[K, V, O]) DeleteValue(value V, ensure bool) error {
 		list.indexBucketCache = indexesBucket.Bucket(k)
 		return list.Remove(value, false)
 	}); err != nil {
-		return fmt.Errorf("delete value in keys buckets: %w", err)
+		return fmt.Errorf("delete value in keys bucket: %w", err)
 	}
 
 	if err := valuesBucket.DeleteBucket(v); err != nil {

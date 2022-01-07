@@ -159,7 +159,7 @@ func (c *Collection[K, V]) Delete(key K, ensure bool) error {
 	}
 	bucket, err := c.bucket(false)
 	if err != nil {
-		return err
+		return fmt.Errorf("bucket: %w", err)
 	}
 	if bucket == nil {
 		if ensure {

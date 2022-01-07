@@ -193,9 +193,16 @@ func (l *List[V, O]) Remove(value V, ensure bool) error {
 		return fmt.Errorf("encode value: %w", err)
 	}
 
-	indexBucket, err := l.indexBucket(true)
+	indexBucket, err := l.indexBucket(false)
 	if err != nil {
 		return fmt.Errorf("index bucket: %w", err)
+	}
+
+	if indexBucket == nil {
+		if ensure {
+			return l.definition.errValueNotFound
+		}
+		return nil
 	}
 
 	o := indexBucket.Get(v)
@@ -206,9 +213,16 @@ func (l *List[V, O]) Remove(value V, ensure bool) error {
 		return nil
 	}
 
-	listBucket, err := l.listBucket(true)
+	listBucket, err := l.listBucket(false)
 	if err != nil {
 		return fmt.Errorf("list bucket: %w", err)
+	}
+
+	if listBucket == nil {
+		if ensure {
+			return l.definition.errValueNotFound
+		}
+		return nil
 	}
 
 	if err := listBucket.Delete(append(o, v...)); err != nil {

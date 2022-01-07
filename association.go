@@ -103,13 +103,16 @@ func (a *Association[K, V]) HasKey(key K) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("encode key: %w", err)
 	}
+
 	keysBucket, err := a.keysBucket(false)
 	if err != nil {
 		return false, fmt.Errorf("keys bucket: %w", err)
 	}
+
 	if keysBucket == nil {
 		return false, nil
 	}
+
 	return keysBucket.Get(k) != nil, nil
 }
 
@@ -120,9 +123,13 @@ func (a *Association[K, V]) HasValue(value V) (bool, error) {
 		return false, fmt.Errorf("encode value: %w", err)
 	}
 
-	valuesBucket, err := a.valuesBucket(true)
+	valuesBucket, err := a.valuesBucket(false)
 	if err != nil {
 		return false, fmt.Errorf("values bucket: %w", err)
+	}
+
+	if valuesBucket == nil {
+		return false, nil
 	}
 
 	return valuesBucket.Get(v) != nil, nil
@@ -238,9 +245,16 @@ func (a *Association[K, V]) DeleteByKey(key K, ensure bool) error {
 		return fmt.Errorf("encode key: %w", err)
 	}
 
-	keysBucket, err := a.keysBucket(true)
+	keysBucket, err := a.keysBucket(false)
 	if err != nil {
 		return fmt.Errorf("keys bucket: %w", err)
+	}
+
+	if keysBucket == nil {
+		if ensure {
+			return a.definition.errNotFound
+		}
+		return nil
 	}
 
 	v := keysBucket.Get(k)
@@ -255,9 +269,16 @@ func (a *Association[K, V]) DeleteByKey(key K, ensure bool) error {
 		return fmt.Errorf("delete key: %w", err)
 	}
 
-	valuesBucket, err := a.valuesBucket(true)
+	valuesBucket, err := a.valuesBucket(false)
 	if err != nil {
 		return fmt.Errorf("values bucket: %w", err)
+	}
+
+	if valuesBucket == nil {
+		if ensure {
+			return a.definition.errNotFound
+		}
+		return nil
 	}
 
 	if err := valuesBucket.Delete(v); err != nil {
@@ -276,9 +297,16 @@ func (a *Association[K, V]) DeleteByValue(value V, ensure bool) error {
 		return fmt.Errorf("encode value: %w", err)
 	}
 
-	valuesBucket, err := a.valuesBucket(true)
+	valuesBucket, err := a.valuesBucket(false)
 	if err != nil {
 		return fmt.Errorf("values bucket: %w", err)
+	}
+
+	if valuesBucket == nil {
+		if ensure {
+			return a.definition.errNotFound
+		}
+		return nil
 	}
 
 	k := valuesBucket.Get(v)
@@ -289,9 +317,16 @@ func (a *Association[K, V]) DeleteByValue(value V, ensure bool) error {
 		return nil
 	}
 
-	keysBucket, err := a.keysBucket(true)
+	keysBucket, err := a.keysBucket(false)
 	if err != nil {
 		return fmt.Errorf("keys bucket: %w", err)
+	}
+
+	if keysBucket == nil {
+		if ensure {
+			return a.definition.errNotFound
+		}
+		return nil
 	}
 
 	if err := keysBucket.Delete(k); err != nil {

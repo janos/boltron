@@ -145,11 +145,11 @@ func testEncoding[T any](t *testing.T, encoding boltron.Encoding[T], value T, en
 	t.Helper()
 
 	gotEncoded, err := encoding.Encode(value)
-	assertFail(t, fmt.Sprintf("%v encode error", value), err, nil)
+	assertErrorFail(t, fmt.Sprintf("%v encode error", value), err, nil)
 	assert(t, fmt.Sprintf("%v encoded", value), gotEncoded, encoded)
 
 	gotValue, err := encoding.Decode(encoded)
-	assertFail(t, fmt.Sprintf("%v decode error", value), err, nil)
+	assertErrorFail(t, fmt.Sprintf("%v decode error", value), err, nil)
 	assert(t, fmt.Sprintf("%v decoded", value), gotValue, value)
 }
 

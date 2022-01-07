@@ -6,6 +6,7 @@
 package boltron_test
 
 import (
+	"errors"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -77,6 +78,30 @@ func assertFail[T any](t testing.TB, message string, got, want T) {
 	}
 
 	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("%sgot %v, want %v", message, got, want)
+	}
+}
+
+func assertError(t testing.TB, message string, got, want error) {
+	t.Helper()
+
+	if message != "" {
+		message = message + ": "
+	}
+
+	if !errors.Is(got, want) {
+		t.Errorf("%sgot %v, want %v", message, got, want)
+	}
+}
+
+func assertErrorFail(t testing.TB, message string, got, want error) {
+	t.Helper()
+
+	if message != "" {
+		message = message + ": "
+	}
+
+	if !errors.Is(got, want) {
 		t.Fatalf("%sgot %v, want %v", message, got, want)
 	}
 }
