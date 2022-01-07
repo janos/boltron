@@ -390,7 +390,7 @@ func (l *Lists[K, V, O]) PageOfLists(number, limit int, reverse bool) (s []K, to
 	})
 }
 
-// IterateListsWithValue iterates over List keys that contian the provided value
+// IterateListsWithValue iterates over List keys that contain the provided value
 // in the lexicographical order of keys.
 func (l *Lists[K, V, O]) IterateListsWithValue(value V, start *K, reverse bool, f func(K) (bool, error)) (next *K, err error) {
 	v, err := l.definition.valueEncoding.Encode(value)
@@ -418,7 +418,7 @@ func (l *Lists[K, V, O]) IterateListsWithValue(value V, start *K, reverse bool, 
 	})
 }
 
-// PageOfListsWithValue returns at most a limit of List keys that contian the
+// PageOfListsWithValue returns at most a limit of List keys that contain the
 // provided value at the provided page number.
 func (l *Lists[K, V, O]) PageOfListsWithValue(value V, number, limit int, reverse bool) (s []K, totalElements, pages int, err error) {
 	v, err := l.definition.valueEncoding.Encode(value)
