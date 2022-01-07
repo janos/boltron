@@ -7,6 +7,7 @@ package boltron
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
@@ -140,3 +141,37 @@ var (
 		},
 	)
 )
+
+// NewJSONEncoding uses JSON to encode any JSON-serializable type.
+func NewJSONEncoding[T any]() Encoding[T] {
+	return NewEncoding(
+		func(v T) ([]byte, error) {
+			return json.Marshal(v)
+		},
+		func(b []byte) (v T, err error) {
+			return v, json.Unmarshal(b, &v)
+		},
+	)
+}
+
+// NewProxiedJSONEncoding JSON encodes a type by serializing it to a proxy type.
+// This encoding provies flexibility to adjust json struct tags or type T fields
+// by converting it to and from a proxy type P.
+func NewProxiedJSONEncoding[T, P any](
+	proxyFunc func(T) P,
+	typeFunc func(P) T,
+) Encoding[T] {
+	return NewEncoding(
+		func(v T) ([]byte, error) {
+			return json.Marshal(proxyFunc(v))
+		},
+		func(b []byte) (v T, err error) {
+			var p P
+			if err := json.Unmarshal(b, &p); err != nil {
+				var t T
+				return t, err
+			}
+			return typeFunc(p), nil
+		},
+	)
+}

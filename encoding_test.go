@@ -8,8 +8,10 @@ package boltron_test
 import (
 	"encoding/base64"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"math"
+	"reflect"
 	"testing"
 	"time"
 
@@ -149,4 +151,145 @@ func testEncoding[T any](t *testing.T, encoding boltron.Encoding[T], value T, en
 	gotValue, err := encoding.Decode(encoded)
 	assertFail(t, fmt.Sprintf("%v decode error", value), err, nil)
 	assert(t, fmt.Sprintf("%v decoded", value), gotValue, value)
+}
+
+func TestJSONEncoding(t *testing.T) {
+
+	type record struct {
+		Value  string
+		ID     int
+		Option any `json:"o,omitempty"`
+	}
+
+	tableTestEncoding(t, boltron.NewJSONEncoding[record](), []struct {
+		value   record
+		encoded []byte
+	}{
+		{record{}, []byte(`{"Value":"","ID":0}`)},
+		{record{Value: "test"}, []byte(`{"Value":"test","ID":0}`)},
+		{record{Value: "test", ID: 123}, []byte(`{"Value":"test","ID":123}`)},
+		{record{Value: "test", ID: 123, Option: 4.12}, []byte(`{"Value":"test","ID":123,"o":4.12}`)},
+	})
+}
+
+func TestProxiedJSONEncoding(t *testing.T) {
+
+	type record struct {
+		Value  string
+		ID     int
+		Option any
+	}
+
+	type proxy struct {
+		Value  string `json:"v,omitempty"`
+		ID     int    `json:"i,omitempty"`
+		Option any    `json:"o,omitempty"`
+	}
+
+	tableTestEncoding(t, boltron.NewProxiedJSONEncoding(
+		func(r *record) *proxy {
+			return (*proxy)(r)
+		},
+		func(p *proxy) *record {
+			return (*record)(p)
+		},
+	), []struct {
+		value   *record
+		encoded []byte
+	}{
+		{&record{}, []byte(`{}`)},
+		{&record{Value: "test"}, []byte(`{"v":"test"}`)},
+		{&record{Value: "test", ID: 123}, []byte(`{"v":"test","i":123}`)},
+		{&record{Value: "test", ID: 123, Option: 4.12}, []byte(`{"v":"test","i":123,"o":4.12}`)},
+	})
+}
+
+func BenchmarkProxiedJSONEncoding(b *testing.B) {
+
+	type record struct {
+		Value  string
+		ID     int
+		Option any
+	}
+
+	type proxy struct {
+		Value  string `json:"v,omitempty"`
+		ID     int    `json:"i,omitempty"`
+		Option any    `json:"o,omitempty"`
+	}
+
+	proxiedEncoding := boltron.NewProxiedJSONEncoding(
+		func(r *record) *proxy {
+			return (*proxy)(r)
+		},
+		func(p *proxy) *record {
+			return (*record)(p)
+		},
+	)
+
+	r := &record{Value: "test", ID: 123, Option: 4.12}
+
+	staticProxiedEncoding := boltron.NewEncoding(
+		func(r *record) ([]byte, error) {
+			return json.Marshal((*proxy)(r))
+		},
+		func(b []byte) (*record, error) {
+			var p *proxy
+			if err := json.Unmarshal(b, &p); err != nil {
+				return nil, err
+			}
+			return (*record)(p), nil
+		},
+	)
+
+	var encoded []byte
+	var decoded *record
+
+	b.Run("NewProxiedJSONEncoding_encode", func(b *testing.B) {
+		for n := 0; n < b.N; n++ {
+			data, err := proxiedEncoding.Encode(r)
+			if err != nil {
+				b.Fatal(err)
+			}
+			encoded = data
+		}
+	})
+
+	b.Run("NewProxiedJSONEncoding_decode", func(b *testing.B) {
+		for n := 0; n < b.N; n++ {
+			v, err := proxiedEncoding.Decode(encoded)
+			if err != nil {
+				b.Fatal(err)
+			}
+			decoded = v
+		}
+	})
+
+	if !reflect.DeepEqual(decoded, r) {
+		b.Errorf("got %v, want %v", decoded, r)
+	}
+
+	b.Run("staticProxiedEncoding_encode", func(b *testing.B) {
+		for n := 0; n < b.N; n++ {
+			data, err := staticProxiedEncoding.Encode(r)
+			if err != nil {
+				b.Fatal(err)
+			}
+			encoded = data
+		}
+	})
+
+	b.Run("staticProxiedEncoding_decode", func(b *testing.B) {
+		for n := 0; n < b.N; n++ {
+			v, err := staticProxiedEncoding.Decode(encoded)
+			if err != nil {
+				b.Fatal(err)
+			}
+			decoded = v
+		}
+	})
+
+	if !reflect.DeepEqual(decoded, r) {
+		b.Errorf("got %v, want %v", decoded, r)
+	}
 }
