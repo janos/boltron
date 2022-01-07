@@ -238,7 +238,8 @@ func (c *Collection[K, V]) IterateValues(start *K, reverse bool, f func(V) (bool
 	})
 }
 
-// Page returns at most a limit of elements of key/value pairs at the provided page number.
+// Page returns at most a limit of elements of key/value pairs at the provided
+// page number.
 func (c *Collection[K, V]) Page(number, limit int, reverse bool) (s []Element[K, V], totalElements, pages int, err error) {
 	bucket, err := c.bucket(false)
 	if err != nil {

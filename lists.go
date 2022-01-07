@@ -32,17 +32,18 @@ type ListsDefinition[K, V, O any] struct {
 type ListsOptions struct {
 	// UniqueValues marks if a value can be added only to a single list.
 	UniqueValues bool
-	// ErrListNotFound is returned if the list identified by the key is not found.
+	// ErrListNotFound is returned if the list identified by the key is not
+	// found.
 	ErrListNotFound error
 	// ErrValueNotFound is returned if the value is not found.
 	ErrValueNotFound error
-	// ErrValueExists is returned if the value already exists and it is not
-	// allowed to be overwritten.
+	// ErrValueExists is returned if UniqueValues option is set to true and the
+	// value already exists in another list.
 	ErrValueExists error
 }
 
-// NewListsDefinition constructs a new ListsDefinition with a unique
-// name and key, value and order by encodings.
+// NewListsDefinition constructs a new ListsDefinition with a unique name and
+// key, value and order by encodings.
 func NewListsDefinition[K, V, O any](
 	name string,
 	keyEncoding Encoding[K],
@@ -67,8 +68,8 @@ func NewListsDefinition[K, V, O any](
 	}
 }
 
-// Lists returns a Lists instance that has access to the stored data through
-// the bolt transaction.
+// Lists returns a Lists instance that has access to the stored data through the
+// bolt transaction.
 func (d *ListsDefinition[K, V, O]) Lists(tx *bolt.Tx) *Lists[K, V, O] {
 	return &Lists[K, V, O]{
 		tx:         tx,
@@ -441,7 +442,8 @@ func (l *Lists[K, V, O]) PageOfListsWithValue(value V, number, limit int, revers
 	})
 }
 
-// IterateValues iterates over all values in the lexicographical order of values.
+// IterateValues iterates over all values in the lexicographical order of
+// values.
 func (l *Lists[K, V, O]) IterateValues(start *V, reverse bool, f func(V) (bool, error)) (next *V, err error) {
 	valuesBucket, err := l.valuesBucket(false)
 	if err != nil {

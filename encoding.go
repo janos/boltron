@@ -19,7 +19,8 @@ type Encoding[T any] interface {
 	Decode([]byte) (T, error)
 }
 
-// EncodingFunc is a helper type to construct Encoding from two existing functions.
+// EncodingFunc is a helper type to construct Encoding from two existing
+// functions.
 type EncodingFunc[T any] struct {
 	encodeFunc func(T) ([]byte, error)
 	decodeFunc func([]byte) (T, error)
@@ -86,7 +87,8 @@ var (
 		},
 	)
 
-	// IntBase10Encoding encodes integer using strconv.Itoa and strconv.Atoi functions.
+	// IntBase10Encoding encodes integer using strconv.Itoa and strconv.Atoi
+	// functions.
 	IntBase10Encoding = NewEncoding(
 		func(i int) ([]byte, error) {
 			return []byte(strconv.Itoa(i)), nil
