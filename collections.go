@@ -28,18 +28,21 @@ type CollectionsDefinition[C, K, V any] struct {
 	errKeyExists          error
 }
 
-// CollectionsOptions provides additional configuration for a Collections instance.
+// CollectionsOptions provides additional configuration for a Collections
+// instance.
 type CollectionsOptions struct {
-	// FillPercent is the value for the bolt bucket fill percent for every collection.
+	// FillPercent is the value for the bolt bucket fill percent for every
+	// collection.
 	FillPercent float64
 	// UniqueKeys marks if a key can be added only to a single collection.
 	UniqueKeys bool
-	// ErrCollectionNotFound is returned if the collection identified by its key is not found.
+	// ErrCollectionNotFound is returned if the collection identified by its key
+	// is not found.
 	ErrCollectionNotFound error
 	// ErrKeyNotFound is returned if the key is not found.
 	ErrKeyNotFound error
-	// ErrKeyExists is returned if the key already exists and it is not
-	// allowed to be overwritten.
+	// ErrKeyExists is returned if the key already exists and it is not allowed
+	// to be overwritten.
 	ErrKeyExists error
 }
 
@@ -69,8 +72,8 @@ func NewCollectionsDefinition[C, K, V any](
 	}
 }
 
-// Collections returns a Collections instance that has access to the stored data through
-// the bolt transaction.
+// Collections returns a Collections instance that has access to the stored data
+// through the bolt transaction.
 func (d *CollectionsDefinition[C, K, V]) Collections(tx *bolt.Tx) *Collections[C, K, V] {
 	return &Collections[C, K, V]{
 		tx:         tx,
@@ -110,9 +113,10 @@ func (c *Collections[C, K, V]) keysBucket(create bool) (*bolt.Bucket, error) {
 	return bucket, nil
 }
 
-// Collections returns a Collections instance that is associated with the provided collection key. If the
-// returned value of exists is false, the collection still does not exist but it will
-// be created if a key/value pair is saved to it.
+// Collections returns a Collections instance that is associated with the
+// provided collection key. If the returned value of exists is false, the
+// collection still does not exist but it will be created if a key/value pair is
+// saved to it.
 func (c *Collections[C, K, V]) Collection(key C) (collection *Collection[K, V], exists bool, err error) {
 	k, err := c.definition.collectionKeyEncoding.Encode(key)
 	if err != nil {
@@ -319,7 +323,8 @@ func (c *Collections[C, K, V]) DeleteKey(key K, ensure bool) error {
 	return nil
 }
 
-// IterateCollections iterates over collection keys in the lexicographical order of keys.
+// IterateCollections iterates over collection keys in the lexicographical order
+// of keys.
 func (c *Collections[C, K, V]) IterateCollections(start *C, reverse bool, f func(K) (bool, error)) (next *C, err error) {
 	collectionsBucket, err := c.collectionsBucket(false)
 	if err != nil {
@@ -338,7 +343,8 @@ func (c *Collections[C, K, V]) IterateCollections(start *C, reverse bool, f func
 	})
 }
 
-// PageOfCollections returns at most a limit of collection keys at the provided page number.
+// PageOfCollections returns at most a limit of collection keys at the provided
+// page number.
 func (c *Collections[C, K, V]) PageOfCollections(number, limit int, reverse bool) (s []C, totalElements, pages int, err error) {
 	collectionsBucket, err := c.collectionsBucket(false)
 	if err != nil {
@@ -352,8 +358,8 @@ func (c *Collections[C, K, V]) PageOfCollections(number, limit int, reverse bool
 	})
 }
 
-// IterateCollectionsWithKey iterates over collection keys that contian the provided key
-// in the lexicographical order of collection keys.
+// IterateCollectionsWithKey iterates over collection keys that contian the
+// provided key in the lexicographical order of collection keys.
 func (c *Collections[C, K, V]) IterateCollectionsWithKey(key K, start *C, reverse bool, f func(K) (bool, error)) (next *C, err error) {
 	k, err := c.definition.keyEncoding.Encode(key)
 	if err != nil {
@@ -380,8 +386,8 @@ func (c *Collections[C, K, V]) IterateCollectionsWithKey(key K, start *C, revers
 	})
 }
 
-// PageOfCollectionsWithKey returns at most a limit of collection keys that contain the
-// provided key at the provided page number.
+// PageOfCollectionsWithKey returns at most a limit of collection keys that
+// contain the provided key at the provided page number.
 func (c *Collections[C, K, V]) PageOfCollectionsWithKey(key K, number, limit int, reverse bool) (s []C, totalElements, pages int, err error) {
 	k, err := c.definition.keyEncoding.Encode(key)
 	if err != nil {
