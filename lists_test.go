@@ -6,6 +6,7 @@
 package boltron_test
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -734,6 +735,231 @@ func TestLists_pageOfValues(t *testing.T) {
 			assert(t, "", totalElements, 0)
 			assert(t, "", totalPages, 0)
 		})
+	})
+}
+
+func TestLists_ErrListNotFound_and_ErrValueNotFound(t *testing.T) {
+	db := newDB(t)
+
+	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+		projectDependencies := projectDependenciesDefinition.Lists(tx)
+
+		_, exists, err := projectDependencies.List("missing")
+		assertError(t, "", err, nil)
+		assert(t, "", exists, false)
+
+		has, err := projectDependencies.HasList("missing")
+		assertError(t, "", err, nil)
+		assert(t, "", has, false)
+
+		has, err = projectDependencies.HasValue(0)
+		assertError(t, "", err, nil)
+		assert(t, "", has, false)
+
+		err = projectDependencies.DeleteList("missing", true)
+		assertError(t, "", err, boltron.ErrNotFound)
+
+		err = projectDependencies.DeleteList("missing", false)
+		assertError(t, "", err, nil)
+
+		err = projectDependencies.DeleteValue(0, true)
+		assertError(t, "", err, boltron.ErrNotFound)
+
+		err = projectDependencies.DeleteValue(0, false)
+		assertError(t, "", err, nil)
+	})
+
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		projectDependencies := projectDependenciesDefinition.Lists(tx)
+
+		list, exists, err := projectDependencies.List("one")
+		assertErrorFail(t, "", err, nil)
+		assert(t, "", exists, false)
+
+		err = list.Add(1, time.Now())
+		assertErrorFail(t, "", err, nil)
+	})
+
+	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+		projectDependencies := projectDependenciesDefinition.Lists(tx)
+
+		_, exists, err := projectDependencies.List("missing")
+		assertError(t, "", err, nil)
+		assert(t, "", exists, false)
+
+		has, err := projectDependencies.HasList("missing")
+		assertError(t, "", err, nil)
+		assert(t, "", has, false)
+
+		has, err = projectDependencies.HasValue(0)
+		assertError(t, "", err, nil)
+		assert(t, "", has, false)
+
+		err = projectDependencies.DeleteList("missing", true)
+		assertError(t, "", err, boltron.ErrNotFound)
+
+		err = projectDependencies.DeleteList("missing", false)
+		assertError(t, "", err, nil)
+
+		err = projectDependencies.DeleteValue(0, true)
+		assertError(t, "", err, boltron.ErrNotFound)
+
+		err = projectDependencies.DeleteValue(0, false)
+		assertError(t, "", err, nil)
+	})
+}
+
+func TestLists_customErrListNotFound_and_customErrValueNotFound(t *testing.T) {
+
+	errListNotFoundCustom := errors.New("custom list not found error")
+	errValueNotFoundCustom := errors.New("custom value not found error")
+
+	customProjectDependenciesDefinition := boltron.NewListsDefinition(
+		"project dependencies",
+		boltron.StringEncoding,
+		boltron.Uint64Base36Encoding, // dependency id in another collection
+		boltron.TimeEncoding,
+		&boltron.ListsOptions{
+			ErrListNotFound:  errListNotFoundCustom,
+			ErrValueNotFound: errValueNotFoundCustom,
+		},
+	)
+
+	db := newDB(t)
+
+	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+		projectDependencies := customProjectDependenciesDefinition.Lists(tx)
+
+		_, exists, err := projectDependencies.List("missing")
+		assertError(t, "", err, nil)
+		assert(t, "", exists, false)
+
+		has, err := projectDependencies.HasList("missing")
+		assertError(t, "", err, nil)
+		assert(t, "", has, false)
+
+		has, err = projectDependencies.HasValue(0)
+		assertError(t, "", err, nil)
+		assert(t, "", has, false)
+
+		err = projectDependencies.DeleteList("missing", true)
+		assertError(t, "", err, errListNotFoundCustom)
+
+		err = projectDependencies.DeleteList("missing", false)
+		assertError(t, "", err, nil)
+
+		err = projectDependencies.DeleteValue(0, true)
+		assertError(t, "", err, errValueNotFoundCustom)
+
+		err = projectDependencies.DeleteValue(0, false)
+		assertError(t, "", err, nil)
+	})
+
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		projectDependencies := customProjectDependenciesDefinition.Lists(tx)
+
+		list, exists, err := projectDependencies.List("one")
+		assertErrorFail(t, "", err, nil)
+		assert(t, "", exists, false)
+
+		err = list.Add(1, time.Now())
+		assertErrorFail(t, "", err, nil)
+	})
+
+	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+		projectDependencies := customProjectDependenciesDefinition.Lists(tx)
+
+		_, exists, err := projectDependencies.List("missing")
+		assertError(t, "", err, nil)
+		assert(t, "", exists, false)
+
+		has, err := projectDependencies.HasList("missing")
+		assertError(t, "", err, nil)
+		assert(t, "", has, false)
+
+		has, err = projectDependencies.HasValue(0)
+		assertError(t, "", err, nil)
+		assert(t, "", has, false)
+
+		err = projectDependencies.DeleteList("missing", true)
+		assertError(t, "", err, errListNotFoundCustom)
+
+		err = projectDependencies.DeleteList("missing", false)
+		assertError(t, "", err, nil)
+
+		err = projectDependencies.DeleteValue(0, true)
+		assertError(t, "", err, errValueNotFoundCustom)
+
+		err = projectDependencies.DeleteValue(0, false)
+		assertError(t, "", err, nil)
+	})
+}
+
+func TestLists_uniqueValues(t *testing.T) {
+	customProjectDependenciesDefinition := boltron.NewListsDefinition(
+		"project dependencies",
+		boltron.StringEncoding,
+		boltron.Uint64Base36Encoding, // dependency id in another collection
+		boltron.TimeEncoding,
+		&boltron.ListsOptions{
+			UniqueValues: true,
+		},
+	)
+
+	db := newDB(t)
+
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		projectDependencies := customProjectDependenciesDefinition.Lists(tx)
+
+		boltronProjectDependencies, exists, err := projectDependencies.List("resenje.org/boltron")
+		assertErrorFail(t, "", err, nil)
+		assert(t, "", exists, false)
+
+		schulzeProjectDependencies, exists, err := projectDependencies.List("resenje.org/schulze")
+		assertErrorFail(t, "", err, nil)
+		assert(t, "", exists, false)
+
+		err = boltronProjectDependencies.Add(100, time.Now())
+		assertErrorFail(t, "", err, nil)
+
+		err = schulzeProjectDependencies.Add(100, time.Now())
+		assertErrorFail(t, "", err, boltron.ErrValueExists)
+	})
+}
+
+func TestLists_uniqueValues_customErrValueExists(t *testing.T) {
+
+	errValueExistsCustom := errors.New("custom value exists error")
+
+	customProjectDependenciesDefinition := boltron.NewListsDefinition(
+		"project dependencies",
+		boltron.StringEncoding,
+		boltron.Uint64Base36Encoding, // dependency id in another collection
+		boltron.TimeEncoding,
+		&boltron.ListsOptions{
+			UniqueValues:   true,
+			ErrValueExists: errValueExistsCustom,
+		},
+	)
+
+	db := newDB(t)
+
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		projectDependencies := customProjectDependenciesDefinition.Lists(tx)
+
+		boltronProjectDependencies, exists, err := projectDependencies.List("resenje.org/boltron")
+		assertErrorFail(t, "", err, nil)
+		assert(t, "", exists, false)
+
+		schulzeProjectDependencies, exists, err := projectDependencies.List("resenje.org/schulze")
+		assertErrorFail(t, "", err, nil)
+		assert(t, "", exists, false)
+
+		err = boltronProjectDependencies.Add(100, time.Now())
+		assertErrorFail(t, "", err, nil)
+
+		err = schulzeProjectDependencies.Add(100, time.Now())
+		assertErrorFail(t, "", err, errValueExistsCustom)
 	})
 }
 
