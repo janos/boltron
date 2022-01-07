@@ -8,7 +8,8 @@ package boltron
 import "errors"
 
 var (
-	// ErrNotFound is the default error if requested key or value does not exist.
+	// ErrNotFound is the default error if requested key or value does not
+	// exist.
 	ErrNotFound = errors.New("boltron: not found")
 	// ErrKeyExists is the default error if the key already exists.
 	ErrKeyExists = errors.New("boltron: key exists")

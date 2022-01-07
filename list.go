@@ -292,7 +292,8 @@ func newListElement[V, O any](v V, o O) (ListElement[V, O], error) {
 	}, nil
 }
 
-// Page returns at most a limit of elements of values and order by instances at the provided page number.
+// Page returns at most a limit of elements of values and order by instances at
+// the provided page number.
 func (l *List[V, O]) Page(number, limit int, reverse bool) (s []ListElement[V, O], totalElements, pages int, err error) {
 	listBucket, err := l.listBucket(false)
 	if err != nil {
@@ -316,7 +317,8 @@ func (l *List[V, O]) Page(number, limit int, reverse bool) (s []ListElement[V, O
 	})
 }
 
-// PageOfValues returns at most a limit of elements of values at the provided page number.
+// PageOfValues returns at most a limit of elements of values at the provided
+// page number.
 func (l *List[V, O]) PageOfValues(number, limit int, reverse bool) (s []V, totalElements, pages int, err error) {
 	listBucket, err := l.listBucket(false)
 	if err != nil {
