@@ -6,6 +6,7 @@
 package boltron_test
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
@@ -173,6 +174,238 @@ func TestCollections(t *testing.T) {
 			assertErrorFail(t, fmt.Sprintf("%+v", e), err, nil)
 			assert(t, fmt.Sprintf("%+v", e), has, e.Voter != deletedKey && e.Voter != "mick")
 		}
+	})
+}
+
+func TestCollections_ErrCollectionNotFound_and_ErrKeyNotFound(t *testing.T) {
+	db := newDB(t)
+
+	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+		elections := electionsDefinition.Collections(tx)
+
+		_, exists, err := elections.Collection(0)
+		assertError(t, "", err, nil)
+		assert(t, "", exists, false)
+
+		has, err := elections.HasCollection(0)
+		assertError(t, "", err, nil)
+		assert(t, "", has, false)
+
+		has, err = elections.HasKey("john")
+		assertError(t, "", err, nil)
+		assert(t, "", has, false)
+
+		err = elections.DeleteCollection(0, true)
+		assertError(t, "", err, boltron.ErrNotFound)
+
+		err = elections.DeleteCollection(0, false)
+		assertError(t, "", err, nil)
+
+		err = elections.DeleteKey("john", true)
+		assertError(t, "", err, boltron.ErrNotFound)
+
+		err = elections.DeleteKey("john", false)
+		assertError(t, "", err, nil)
+	})
+
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		elections := electionsDefinition.Collections(tx)
+
+		collection, exists, err := elections.Collection(1)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "", exists, false)
+
+		overwritten, err := collection.Save("paul", newBallot(0), false)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "", overwritten, false)
+	})
+
+	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+		elections := electionsDefinition.Collections(tx)
+
+		_, exists, err := elections.Collection(0)
+		assertError(t, "", err, nil)
+		assert(t, "", exists, false)
+
+		has, err := elections.HasCollection(0)
+		assertError(t, "", err, nil)
+		assert(t, "", has, false)
+
+		has, err = elections.HasKey("john")
+		assertError(t, "", err, nil)
+		assert(t, "", has, false)
+
+		err = elections.DeleteCollection(0, true)
+		assertError(t, "", err, boltron.ErrNotFound)
+
+		err = elections.DeleteCollection(0, false)
+		assertError(t, "", err, nil)
+
+		err = elections.DeleteKey("john", true)
+		assertError(t, "", err, boltron.ErrNotFound)
+
+		err = elections.DeleteKey("john", false)
+		assertError(t, "", err, nil)
+	})
+}
+
+func TestCollections_customErrCollectionNotFound_and_customErrKeyNotFound(t *testing.T) {
+
+	errCollectionNotFoundCustom := errors.New("custom collection not found error")
+	errKeyNotFoundCustom := errors.New("custom key not found error")
+
+	customElectionsDefinition := boltron.NewCollectionsDefinition(
+		"elections",
+		boltron.Uint64BinaryEncoding,       // election id
+		boltron.StringEncoding,             // voter id
+		boltron.NewJSONEncoding[*ballot](), // ballot with a vote
+		&boltron.CollectionsOptions{
+			ErrCollectionNotFound: errCollectionNotFoundCustom,
+			ErrKeyNotFound:        errKeyNotFoundCustom,
+		},
+	)
+
+	db := newDB(t)
+
+	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+		elections := customElectionsDefinition.Collections(tx)
+
+		_, exists, err := elections.Collection(0)
+		assertError(t, "", err, nil)
+		assert(t, "", exists, false)
+
+		has, err := elections.HasCollection(0)
+		assertError(t, "", err, nil)
+		assert(t, "", has, false)
+
+		has, err = elections.HasKey("john")
+		assertError(t, "", err, nil)
+		assert(t, "", has, false)
+
+		err = elections.DeleteCollection(0, true)
+		assertError(t, "", err, errCollectionNotFoundCustom)
+
+		err = elections.DeleteCollection(0, false)
+		assertError(t, "", err, nil)
+
+		err = elections.DeleteKey("john", true)
+		assertError(t, "", err, errKeyNotFoundCustom)
+
+		err = elections.DeleteKey("john", false)
+		assertError(t, "", err, nil)
+	})
+
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		elections := customElectionsDefinition.Collections(tx)
+
+		collection, exists, err := elections.Collection(1)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "", exists, false)
+
+		overwritten, err := collection.Save("paul", newBallot(0), false)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "", overwritten, false)
+	})
+
+	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+		elections := customElectionsDefinition.Collections(tx)
+
+		_, exists, err := elections.Collection(0)
+		assertError(t, "", err, nil)
+		assert(t, "", exists, false)
+
+		has, err := elections.HasCollection(0)
+		assertError(t, "", err, nil)
+		assert(t, "", has, false)
+
+		has, err = elections.HasKey("john")
+		assertError(t, "", err, nil)
+		assert(t, "", has, false)
+
+		err = elections.DeleteCollection(0, true)
+		assertError(t, "", err, errCollectionNotFoundCustom)
+
+		err = elections.DeleteCollection(0, false)
+		assertError(t, "", err, nil)
+
+		err = elections.DeleteKey("john", true)
+		assertError(t, "", err, errKeyNotFoundCustom)
+
+		err = elections.DeleteKey("john", false)
+		assertError(t, "", err, nil)
+	})
+}
+
+func TestCollections_uniqueKeys(t *testing.T) {
+
+	customElectionsDefinition := boltron.NewCollectionsDefinition(
+		"elections",
+		boltron.Uint64BinaryEncoding,       // election id
+		boltron.StringEncoding,             // voter id
+		boltron.NewJSONEncoding[*ballot](), // ballot with a vote
+		&boltron.CollectionsOptions{
+			UniqueKeys: true,
+		},
+	)
+
+	db := newDB(t)
+
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		elections := customElectionsDefinition.Collections(tx)
+
+		election0, exists, err := elections.Collection(0)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "", exists, false)
+
+		election1, exists, err := elections.Collection(1)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "", exists, false)
+
+		overwritten, err := election0.Save("john", newBallot(0), false)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "", overwritten, false)
+
+		overwritten, err = election1.Save("john", newBallot(0), false)
+		assertErrorFail(t, "", err, boltron.ErrKeyExists)
+		assert(t, "", overwritten, false)
+	})
+}
+
+func TestCollections_uniqueKeys_customErrKeyExists(t *testing.T) {
+
+	errKeyExistsCustom := errors.New("custom key exists error")
+
+	customElectionsDefinition := boltron.NewCollectionsDefinition(
+		"elections",
+		boltron.Uint64BinaryEncoding,       // election id
+		boltron.StringEncoding,             // voter id
+		boltron.NewJSONEncoding[*ballot](), // ballot with a vote
+		&boltron.CollectionsOptions{
+			UniqueKeys:   true,
+			ErrKeyExists: errKeyExistsCustom,
+		},
+	)
+
+	db := newDB(t)
+
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		elections := customElectionsDefinition.Collections(tx)
+
+		election0, exists, err := elections.Collection(0)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "", exists, false)
+
+		election1, exists, err := elections.Collection(1)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "", exists, false)
+
+		overwritten, err := election0.Save("john", newBallot(0), false)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "", overwritten, false)
+
+		overwritten, err = election1.Save("john", newBallot(0), false)
+		assertErrorFail(t, "", err, errKeyExistsCustom)
+		assert(t, "", overwritten, false)
 	})
 }
 

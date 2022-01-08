@@ -41,8 +41,8 @@ type CollectionsOptions struct {
 	ErrCollectionNotFound error
 	// ErrKeyNotFound is returned if the key is not found.
 	ErrKeyNotFound error
-	// ErrKeyExists is returned if the key already exists and it is not allowed
-	// to be overwritten.
+	// ErrKeyExists is returned if UniqueValues option is set to true and the
+	// key already exists in another collection.
 	ErrKeyExists error
 }
 
@@ -295,25 +295,21 @@ func (c *Collections[C, K, V]) DeleteKey(key K, ensure bool) error {
 	if err != nil {
 		return fmt.Errorf("collections bucket: %w", err)
 	}
-	if collectionsBucket == nil {
-		if ensure {
-			return c.definition.errCollectionNotFound
+
+	if collectionsBucket != nil {
+		collection := (&CollectionDefinition[K, V]{
+			keyEncoding:   c.definition.keyEncoding,
+			valueEncoding: c.definition.valueEncoding,
+			errNotFound:   c.definition.errKeyNotFound,
+			errKeyExists:  c.definition.errKeyExists,
+		}).Collection(nil)
+
+		if err := keyBucket.ForEach(func(k, _ []byte) error {
+			collection.bucketCache = collectionsBucket.Bucket(k)
+			return collection.Delete(key, false)
+		}); err != nil {
+			return fmt.Errorf("delete key in keys bucket: %w", err)
 		}
-		return nil
-	}
-
-	collection := (&CollectionDefinition[K, V]{
-		keyEncoding:   c.definition.keyEncoding,
-		valueEncoding: c.definition.valueEncoding,
-		errNotFound:   c.definition.errKeyNotFound,
-		errKeyExists:  c.definition.errKeyExists,
-	}).Collection(nil)
-
-	if err := keyBucket.ForEach(func(k, _ []byte) error {
-		collection.bucketCache = collectionsBucket.Bucket(k)
-		return collection.Delete(key, false)
-	}); err != nil {
-		return fmt.Errorf("delete key in keys bucket: %w", err)
 	}
 
 	if err := keysBucket.DeleteBucket(k); err != nil {
