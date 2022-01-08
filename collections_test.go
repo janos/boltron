@@ -839,10 +839,9 @@ func TestCollections_ErrCollectionNotFound_and_ErrKeyNotFound(t *testing.T) {
 	})
 }
 
-func TestCollections_customErrCollectionNotFound_and_customErrKeyNotFound(t *testing.T) {
+func TestCollections_customErrNotFound(t *testing.T) {
 
-	errCollectionNotFoundCustom := errors.New("custom collection not found error")
-	errKeyNotFoundCustom := errors.New("custom key not found error")
+	errNotFoundCustom := errors.New("custom not found error")
 
 	customElectionsDefinition := boltron.NewCollectionsDefinition(
 		"elections",
@@ -850,8 +849,7 @@ func TestCollections_customErrCollectionNotFound_and_customErrKeyNotFound(t *tes
 		boltron.StringEncoding,             // voter id
 		boltron.NewJSONEncoding[*ballot](), // ballot with a vote
 		&boltron.CollectionsOptions{
-			ErrCollectionNotFound: errCollectionNotFoundCustom,
-			ErrKeyNotFound:        errKeyNotFoundCustom,
+			ErrNotFound: errNotFoundCustom,
 		},
 	)
 
@@ -873,13 +871,13 @@ func TestCollections_customErrCollectionNotFound_and_customErrKeyNotFound(t *tes
 		assert(t, "", has, false)
 
 		err = elections.DeleteCollection(0, true)
-		assertError(t, "", err, errCollectionNotFoundCustom)
+		assertError(t, "", err, errNotFoundCustom)
 
 		err = elections.DeleteCollection(0, false)
 		assertError(t, "", err, nil)
 
 		err = elections.DeleteKey("john", true)
-		assertError(t, "", err, errKeyNotFoundCustom)
+		assertError(t, "", err, errNotFoundCustom)
 
 		err = elections.DeleteKey("john", false)
 		assertError(t, "", err, nil)
@@ -913,13 +911,13 @@ func TestCollections_customErrCollectionNotFound_and_customErrKeyNotFound(t *tes
 		assert(t, "", has, false)
 
 		err = elections.DeleteCollection(0, true)
-		assertError(t, "", err, errCollectionNotFoundCustom)
+		assertError(t, "", err, errNotFoundCustom)
 
 		err = elections.DeleteCollection(0, false)
 		assertError(t, "", err, nil)
 
 		err = elections.DeleteKey("john", true)
-		assertError(t, "", err, errKeyNotFoundCustom)
+		assertError(t, "", err, errNotFoundCustom)
 
 		err = elections.DeleteKey("john", false)
 		assertError(t, "", err, nil)
