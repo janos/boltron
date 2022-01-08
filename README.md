@@ -20,6 +20,7 @@ There are three basic types with their definitions:
 One complex types provides methods to manage sets of basic types:
 
 - Collections
+- Associations
 - Lists
 
 ## Installation
