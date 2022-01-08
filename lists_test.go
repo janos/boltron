@@ -183,12 +183,13 @@ func TestLists_iterateLists(t *testing.T) {
 
 			var i int
 			next, err := projectDependencies.IterateLists(nil, false, func(v string) (bool, error) {
-				assert(t, fmt.Sprintf("iterate value #%v", i), v, testProjectDependenciesLists[i])
+				assert(t, fmt.Sprintf("iterate list #%v", i), v, testProjectDependenciesLists[i])
 				i++
 				return true, nil
 			})
 			assertErrorFail(t, "", err, nil)
 			assert(t, "", next, nil)
+			assert(t, "", i, len(testProjectDependenciesLists))
 		})
 	})
 
@@ -198,7 +199,7 @@ func TestLists_iterateLists(t *testing.T) {
 
 			var i int
 			next, err := projectDependencies.IterateLists(nil, false, func(v string) (bool, error) {
-				assert(t, fmt.Sprintf("iterate value #%v", i), v, testProjectDependenciesLists[i])
+				assert(t, fmt.Sprintf("iterate list #%v", i), v, testProjectDependenciesLists[i])
 				i++
 				if i == 2 {
 					return false, nil
@@ -209,12 +210,13 @@ func TestLists_iterateLists(t *testing.T) {
 			assert(t, "", *next, "resenje.org/schulze")
 
 			next, err = projectDependencies.IterateLists(next, false, func(v string) (bool, error) {
-				assert(t, fmt.Sprintf("iterate value #%v", i), v, testProjectDependenciesLists[i])
+				assert(t, fmt.Sprintf("iterate list #%v", i), v, testProjectDependenciesLists[i])
 				i++
 				return true, nil
 			})
 			assertErrorFail(t, "", err, nil)
 			assert(t, "", next, nil)
+			assert(t, "", i, len(testProjectDependenciesLists))
 		})
 	})
 
@@ -224,12 +226,13 @@ func TestLists_iterateLists(t *testing.T) {
 
 			var i int
 			next, err := projectDependencies.IterateLists(nil, true, func(v string) (bool, error) {
-				assert(t, fmt.Sprintf("iterate value #%v", i), v, testProjectDependenciesLists[len(testProjectDependenciesLists)-1-i])
+				assert(t, fmt.Sprintf("iterate list #%v", i), v, testProjectDependenciesLists[len(testProjectDependenciesLists)-1-i])
 				i++
 				return true, nil
 			})
 			assertErrorFail(t, "", err, nil)
 			assert(t, "", next, nil)
+			assert(t, "", i, len(testProjectDependenciesLists))
 		})
 	})
 
@@ -239,7 +242,7 @@ func TestLists_iterateLists(t *testing.T) {
 
 			var i int
 			next, err := projectDependencies.IterateLists(nil, true, func(v string) (bool, error) {
-				assert(t, fmt.Sprintf("iterate value #%v", i), v, testProjectDependenciesLists[len(testProjectDependenciesLists)-1-i])
+				assert(t, fmt.Sprintf("iterate list #%v", i), v, testProjectDependenciesLists[len(testProjectDependenciesLists)-1-i])
 				i++
 				if i == 2 {
 					return false, nil
@@ -256,6 +259,7 @@ func TestLists_iterateLists(t *testing.T) {
 			})
 			assertErrorFail(t, "", err, nil)
 			assert(t, "", next, nil)
+			assert(t, "", i, len(testProjectDependenciesLists))
 		})
 	})
 
@@ -352,12 +356,13 @@ func TestLists_iterateListsWithValue(t *testing.T) {
 
 			var i int
 			next, err := projectDependencies.IterateListsWithValue(125, nil, false, func(v string) (bool, error) {
-				assert(t, fmt.Sprintf("iterate value #%v", i), v, testProjectDependenciesListsWithValue125[i])
+				assert(t, fmt.Sprintf("iterate list #%v", i), v, testProjectDependenciesListsWithValue125[i])
 				i++
 				return true, nil
 			})
 			assertErrorFail(t, "", err, nil)
 			assert(t, "", next, nil)
+			assert(t, "", i, len(testProjectDependenciesListsWithValue125))
 		})
 	})
 
@@ -367,7 +372,7 @@ func TestLists_iterateListsWithValue(t *testing.T) {
 
 			var i int
 			next, err := projectDependencies.IterateListsWithValue(125, nil, false, func(v string) (bool, error) {
-				assert(t, fmt.Sprintf("iterate value #%v", i), v, testProjectDependenciesListsWithValue125[i])
+				assert(t, fmt.Sprintf("iterate list #%v", i), v, testProjectDependenciesListsWithValue125[i])
 				i++
 				if i == 2 {
 					return false, nil
@@ -378,12 +383,13 @@ func TestLists_iterateListsWithValue(t *testing.T) {
 			assert(t, "", *next, "resenje.org/web")
 
 			next, err = projectDependencies.IterateListsWithValue(125, next, false, func(v string) (bool, error) {
-				assert(t, fmt.Sprintf("iterate value #%v", i), v, testProjectDependenciesListsWithValue125[i])
+				assert(t, fmt.Sprintf("iterate list #%v", i), v, testProjectDependenciesListsWithValue125[i])
 				i++
 				return true, nil
 			})
 			assertErrorFail(t, "", err, nil)
 			assert(t, "", next, nil)
+			assert(t, "", i, len(testProjectDependenciesListsWithValue125))
 		})
 	})
 
@@ -393,12 +399,13 @@ func TestLists_iterateListsWithValue(t *testing.T) {
 
 			var i int
 			next, err := projectDependencies.IterateListsWithValue(125, nil, true, func(v string) (bool, error) {
-				assert(t, fmt.Sprintf("iterate value #%v", i), v, testProjectDependenciesListsWithValue125[len(testProjectDependenciesListsWithValue125)-1-i])
+				assert(t, fmt.Sprintf("iterate list #%v", i), v, testProjectDependenciesListsWithValue125[len(testProjectDependenciesListsWithValue125)-1-i])
 				i++
 				return true, nil
 			})
 			assertErrorFail(t, "", err, nil)
 			assert(t, "", next, nil)
+			assert(t, "", i, len(testProjectDependenciesListsWithValue125))
 		})
 	})
 
@@ -408,7 +415,7 @@ func TestLists_iterateListsWithValue(t *testing.T) {
 
 			var i int
 			next, err := projectDependencies.IterateListsWithValue(125, nil, true, func(v string) (bool, error) {
-				assert(t, fmt.Sprintf("iterate value #%v", i), v, testProjectDependenciesListsWithValue125[len(testProjectDependenciesListsWithValue125)-1-i])
+				assert(t, fmt.Sprintf("iterate list #%v", i), v, testProjectDependenciesListsWithValue125[len(testProjectDependenciesListsWithValue125)-1-i])
 				i++
 				if i == 2 {
 					return false, nil
@@ -419,12 +426,13 @@ func TestLists_iterateListsWithValue(t *testing.T) {
 			assert(t, "", *next, "resenje.org/pool")
 
 			next, err = projectDependencies.IterateListsWithValue(125, next, true, func(v string) (bool, error) {
-				assert(t, fmt.Sprintf("iterate value #%v", i), v, testProjectDependenciesListsWithValue125[len(testProjectDependenciesListsWithValue125)-1-i])
+				assert(t, fmt.Sprintf("iterate list #%v", i), v, testProjectDependenciesListsWithValue125[len(testProjectDependenciesListsWithValue125)-1-i])
 				i++
 				return true, nil
 			})
 			assertErrorFail(t, "", err, nil)
 			assert(t, "", next, nil)
+			assert(t, "", i, len(testProjectDependenciesListsWithValue125))
 		})
 	})
 
@@ -572,6 +580,7 @@ func TestLists_iterateValues(t *testing.T) {
 			})
 			assertErrorFail(t, "", err, nil)
 			assert(t, "", next, nil)
+			assert(t, "", i, len(testProjectDependenciesValues))
 		})
 	})
 
@@ -598,6 +607,7 @@ func TestLists_iterateValues(t *testing.T) {
 			})
 			assertErrorFail(t, "", err, nil)
 			assert(t, "", next, nil)
+			assert(t, "", i, len(testProjectDependenciesValues))
 		})
 	})
 
@@ -613,6 +623,7 @@ func TestLists_iterateValues(t *testing.T) {
 			})
 			assertErrorFail(t, "", err, nil)
 			assert(t, "", next, nil)
+			assert(t, "", i, len(testProjectDependenciesValues))
 		})
 	})
 
@@ -639,6 +650,7 @@ func TestLists_iterateValues(t *testing.T) {
 			})
 			assertErrorFail(t, "", err, nil)
 			assert(t, "", next, nil)
+			assert(t, "", i, len(testProjectDependenciesValues))
 		})
 	})
 

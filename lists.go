@@ -260,9 +260,6 @@ func (l *Lists[K, V, O]) DeleteList(key K, ensure bool) error {
 		if valueBucket == nil {
 			return nil
 		}
-		if valueBucket.Get(k) == nil {
-			return nil
-		}
 		if err := valueBucket.Delete(k); err != nil {
 			return fmt.Errorf("delete key from value bucket: %w", err)
 		}
