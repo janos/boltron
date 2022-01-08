@@ -28,13 +28,13 @@ var (
 		Voter    string
 		Ballot   *ballot
 	}{
-		{0, "allice", newBallot(1)},
+		{0, "alice", newBallot(1)},
 		{0, "bob", newBallot(1)},
 		{0, "chriss", newBallot(2)},
 		{0, "dave", newBallot(0)},
 		{0, "edit", newBallot(2)},
 
-		{5, "allice", newBallot(0)},
+		{5, "alice", newBallot(0)},
 		{5, "bob", newBallot(4)},
 		{5, "dave", newBallot(2)},
 		{5, "mick", newBallot(2)},
@@ -47,14 +47,14 @@ var (
 		{6, "ringo", newBallot(2)},
 		{6, "john", newBallot(1)},
 
-		{7, "allice", newBallot(0)},
+		{7, "alice", newBallot(0)},
 		{7, "dave", newBallot(0)},
 	}
 
 	testElectionsCollections = []uint64{0, 5, 6, 7}
 
 	testElectionsKeys = []string{
-		"allice",
+		"alice",
 		"bob",
 		"chriss",
 		"dave",
@@ -66,7 +66,7 @@ var (
 		"ringo",
 	}
 
-	testElectionsCollectionsWithKeyAllice = []uint64{0, 5, 7}
+	testElectionsCollectionsWithKeyAlice = []uint64{0, 5, 7}
 )
 
 type ballot struct {
@@ -362,14 +362,14 @@ func TestCollections_iterateCollectionsWithKey(t *testing.T) {
 			elections := electionsDefinition.Collections(tx)
 
 			var i int
-			next, err := elections.IterateCollectionsWithKey("allice", nil, false, func(v uint64) (bool, error) {
-				assert(t, fmt.Sprintf("iterate collection #%v", i), v, testElectionsCollectionsWithKeyAllice[i])
+			next, err := elections.IterateCollectionsWithKey("alice", nil, false, func(v uint64) (bool, error) {
+				assert(t, fmt.Sprintf("iterate collection #%v", i), v, testElectionsCollectionsWithKeyAlice[i])
 				i++
 				return true, nil
 			})
 			assertErrorFail(t, "", err, nil)
 			assert(t, "", next, nil)
-			assert(t, "", i, len(testElectionsCollectionsWithKeyAllice))
+			assert(t, "", i, len(testElectionsCollectionsWithKeyAlice))
 		})
 	})
 
@@ -378,8 +378,8 @@ func TestCollections_iterateCollectionsWithKey(t *testing.T) {
 			elections := electionsDefinition.Collections(tx)
 
 			var i int
-			next, err := elections.IterateCollectionsWithKey("allice", nil, false, func(v uint64) (bool, error) {
-				assert(t, fmt.Sprintf("iterate collection #%v", i), v, testElectionsCollectionsWithKeyAllice[i])
+			next, err := elections.IterateCollectionsWithKey("alice", nil, false, func(v uint64) (bool, error) {
+				assert(t, fmt.Sprintf("iterate collection #%v", i), v, testElectionsCollectionsWithKeyAlice[i])
 				i++
 				if i == 2 {
 					return false, nil
@@ -389,14 +389,14 @@ func TestCollections_iterateCollectionsWithKey(t *testing.T) {
 			assertErrorFail(t, "", err, nil)
 			assert(t, "", *next, 7)
 
-			next, err = elections.IterateCollectionsWithKey("allice", next, false, func(v uint64) (bool, error) {
-				assert(t, fmt.Sprintf("iterate collection #%v", i), v, testElectionsCollectionsWithKeyAllice[i])
+			next, err = elections.IterateCollectionsWithKey("alice", next, false, func(v uint64) (bool, error) {
+				assert(t, fmt.Sprintf("iterate collection #%v", i), v, testElectionsCollectionsWithKeyAlice[i])
 				i++
 				return true, nil
 			})
 			assertErrorFail(t, "", err, nil)
 			assert(t, "", next, nil)
-			assert(t, "", i, len(testElectionsCollectionsWithKeyAllice))
+			assert(t, "", i, len(testElectionsCollectionsWithKeyAlice))
 		})
 	})
 
@@ -405,14 +405,14 @@ func TestCollections_iterateCollectionsWithKey(t *testing.T) {
 			elections := electionsDefinition.Collections(tx)
 
 			var i int
-			next, err := elections.IterateCollectionsWithKey("allice", nil, true, func(v uint64) (bool, error) {
-				assert(t, fmt.Sprintf("iterate collection #%v", i), v, testElectionsCollectionsWithKeyAllice[len(testElectionsCollectionsWithKeyAllice)-1-i])
+			next, err := elections.IterateCollectionsWithKey("alice", nil, true, func(v uint64) (bool, error) {
+				assert(t, fmt.Sprintf("iterate collection #%v", i), v, testElectionsCollectionsWithKeyAlice[len(testElectionsCollectionsWithKeyAlice)-1-i])
 				i++
 				return true, nil
 			})
 			assertErrorFail(t, "", err, nil)
 			assert(t, "", next, nil)
-			assert(t, "", i, len(testElectionsCollectionsWithKeyAllice))
+			assert(t, "", i, len(testElectionsCollectionsWithKeyAlice))
 		})
 	})
 
@@ -421,8 +421,8 @@ func TestCollections_iterateCollectionsWithKey(t *testing.T) {
 			elections := electionsDefinition.Collections(tx)
 
 			var i int
-			next, err := elections.IterateCollectionsWithKey("allice", nil, true, func(v uint64) (bool, error) {
-				assert(t, fmt.Sprintf("iterate collection #%v", i), v, testElectionsCollectionsWithKeyAllice[len(testElectionsCollectionsWithKeyAllice)-1-i])
+			next, err := elections.IterateCollectionsWithKey("alice", nil, true, func(v uint64) (bool, error) {
+				assert(t, fmt.Sprintf("iterate collection #%v", i), v, testElectionsCollectionsWithKeyAlice[len(testElectionsCollectionsWithKeyAlice)-1-i])
 				i++
 				if i == 2 {
 					return false, nil
@@ -432,14 +432,14 @@ func TestCollections_iterateCollectionsWithKey(t *testing.T) {
 			assertErrorFail(t, "", err, nil)
 			assert(t, "", *next, 0)
 
-			next, err = elections.IterateCollectionsWithKey("allice", next, true, func(v uint64) (bool, error) {
-				assert(t, fmt.Sprintf("iterate collection #%v", i), v, testElectionsCollectionsWithKeyAllice[len(testElectionsCollectionsWithKeyAllice)-1-i])
+			next, err = elections.IterateCollectionsWithKey("alice", next, true, func(v uint64) (bool, error) {
+				assert(t, fmt.Sprintf("iterate collection #%v", i), v, testElectionsCollectionsWithKeyAlice[len(testElectionsCollectionsWithKeyAlice)-1-i])
 				i++
 				return true, nil
 			})
 			assertErrorFail(t, "", err, nil)
 			assert(t, "", next, nil)
-			assert(t, "", i, len(testElectionsCollectionsWithKeyAllice))
+			assert(t, "", i, len(testElectionsCollectionsWithKeyAlice))
 		})
 	})
 
@@ -450,7 +450,7 @@ func TestCollections_iterateCollectionsWithKey(t *testing.T) {
 			elections := electionsDefinition.Collections(tx)
 
 			var count int
-			next, err := elections.IterateCollectionsWithKey("allice", nil, false, func(_ uint64) (bool, error) {
+			next, err := elections.IterateCollectionsWithKey("alice", nil, false, func(_ uint64) (bool, error) {
 				count++
 				return true, nil
 			})
@@ -475,7 +475,7 @@ func TestCollections_iterateCollectionsWithKey(t *testing.T) {
 			elections := electionsDefinition.Collections(tx)
 
 			var count int
-			next, err := elections.IterateCollectionsWithKey("allice", nil, false, func(_ uint64) (bool, error) {
+			next, err := elections.IterateCollectionsWithKey("alice", nil, false, func(_ uint64) (bool, error) {
 				count++
 				return true, nil
 			})
@@ -493,21 +493,21 @@ func TestCollections_pageOfCollectionsWithKey(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
 			elections := electionsDefinition.Collections(tx)
 
-			_, _, _, err := elections.PageOfCollectionsWithKey("allice", -1, 3, false)
+			_, _, _, err := elections.PageOfCollectionsWithKey("alice", -1, 3, false)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
 
-			_, _, _, err = elections.PageOfCollectionsWithKey("allice", 0, 3, false)
+			_, _, _, err = elections.PageOfCollectionsWithKey("alice", 0, 3, false)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
 
-			page, totalElements, totalPages, err := elections.PageOfCollectionsWithKey("allice", 1, 2, false)
+			page, totalElements, totalPages, err := elections.PageOfCollectionsWithKey("alice", 1, 2, false)
 			assertErrorFail(t, "", err, nil)
-			assert(t, "", page, electionsCollectionsWithKeyAllice(0, 1))
+			assert(t, "", page, electionsCollectionsWithKeyAlice(0, 1))
 			assert(t, "", totalElements, 3)
 			assert(t, "", totalPages, 2)
 
-			page, totalElements, totalPages, err = elections.PageOfCollectionsWithKey("allice", 2, 2, false)
+			page, totalElements, totalPages, err = elections.PageOfCollectionsWithKey("alice", 2, 2, false)
 			assertErrorFail(t, "", err, nil)
-			assert(t, "", page, electionsCollectionsWithKeyAllice(2))
+			assert(t, "", page, electionsCollectionsWithKeyAlice(2))
 			assert(t, "", totalElements, 3)
 			assert(t, "", totalPages, 2)
 		})
@@ -517,21 +517,21 @@ func TestCollections_pageOfCollectionsWithKey(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
 			elections := electionsDefinition.Collections(tx)
 
-			_, _, _, err := elections.PageOfCollectionsWithKey("allice", -1, 3, false)
+			_, _, _, err := elections.PageOfCollectionsWithKey("alice", -1, 3, false)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
 
-			_, _, _, err = elections.PageOfCollectionsWithKey("allice", 0, 3, false)
+			_, _, _, err = elections.PageOfCollectionsWithKey("alice", 0, 3, false)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
 
-			page, totalElements, totalPages, err := elections.PageOfCollectionsWithKey("allice", 1, 2, true)
+			page, totalElements, totalPages, err := elections.PageOfCollectionsWithKey("alice", 1, 2, true)
 			assertErrorFail(t, "", err, nil)
-			assert(t, "", page, electionsCollectionsWithKeyAllice(2, 1))
+			assert(t, "", page, electionsCollectionsWithKeyAlice(2, 1))
 			assert(t, "", totalElements, 3)
 			assert(t, "", totalPages, 2)
 
-			page, totalElements, totalPages, err = elections.PageOfCollectionsWithKey("allice", 2, 2, true)
+			page, totalElements, totalPages, err = elections.PageOfCollectionsWithKey("alice", 2, 2, true)
 			assertErrorFail(t, "", err, nil)
-			assert(t, "", page, electionsCollectionsWithKeyAllice(0))
+			assert(t, "", page, electionsCollectionsWithKeyAlice(0))
 			assert(t, "", totalElements, 3)
 			assert(t, "", totalPages, 2)
 		})
@@ -543,7 +543,7 @@ func TestCollections_pageOfCollectionsWithKey(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
 			elections := electionsDefinition.Collections(tx)
 
-			page, totalElements, totalPages, err := elections.PageOfCollectionsWithKey("allice", 1, 3, true)
+			page, totalElements, totalPages, err := elections.PageOfCollectionsWithKey("alice", 1, 3, true)
 			assertErrorFail(t, "", err, nil)
 			assert(t, "", page, nil)
 			assert(t, "", totalElements, 0)
@@ -565,7 +565,7 @@ func TestCollections_pageOfCollectionsWithKey(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
 			elections := electionsDefinition.Collections(tx)
 
-			page, totalElements, totalPages, err := elections.PageOfCollectionsWithKey("allice", 1, 3, true)
+			page, totalElements, totalPages, err := elections.PageOfCollectionsWithKey("alice", 1, 3, true)
 			assertErrorFail(t, "", err, nil)
 			assert(t, "", page, nil)
 			assert(t, "", totalElements, 0)
@@ -1057,10 +1057,10 @@ func electionsCollections(is ...int) []uint64 {
 	return s
 }
 
-func electionsCollectionsWithKeyAllice(is ...int) []uint64 {
+func electionsCollectionsWithKeyAlice(is ...int) []uint64 {
 	s := make([]uint64, 0, len(is))
 	for _, i := range is {
-		s = append(s, testElectionsCollectionsWithKeyAllice[i])
+		s = append(s, testElectionsCollectionsWithKeyAlice[i])
 	}
 	return s
 }
