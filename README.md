@@ -17,7 +17,10 @@ There are three basic types with their definitions:
 - Association
 - List
 
-One complex type Lists provides methods to manage a set od lists.
+One complex types provides methods to manage sets of basic types:
+
+- Collections
+- Lists
 
 ## Installation
 
