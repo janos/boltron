@@ -120,7 +120,7 @@ func (c *Collections[C, K, V]) keysBucket(create bool) (*bolt.Bucket, error) {
 func (c *Collections[C, K, V]) Collection(key C) (collection *Collection[K, V], exists bool, err error) {
 	k, err := c.definition.collectionKeyEncoding.Encode(key)
 	if err != nil {
-		return nil, false, fmt.Errorf("encode key: %w", err)
+		return nil, false, fmt.Errorf("encode collection key: %w", err)
 	}
 	collectionsBucket, err := c.collectionsBucket(false)
 	if err != nil {
@@ -167,7 +167,7 @@ func (c *Collections[C, K, V]) Collection(key C) (collection *Collection[K, V], 
 func (c *Collections[C, K, V]) HasCollection(key C) (bool, error) {
 	ck, err := c.definition.collectionKeyEncoding.Encode(key)
 	if err != nil {
-		return false, fmt.Errorf("encode key: %w", err)
+		return false, fmt.Errorf("encode collection key: %w", err)
 	}
 
 	collectionsBucket, err := c.collectionsBucket(false)
@@ -205,7 +205,7 @@ func (c *Collections[C, K, V]) HasKey(key K) (bool, error) {
 func (c *Collections[C, K, V]) DeleteCollection(key C, ensure bool) error {
 	ck, err := c.definition.collectionKeyEncoding.Encode(key)
 	if err != nil {
-		return fmt.Errorf("encode key: %w", err)
+		return fmt.Errorf("encode collection key: %w", err)
 	}
 
 	collectionsBucket, err := c.collectionsBucket(false)
@@ -257,7 +257,7 @@ func (c *Collections[C, K, V]) DeleteCollection(key C, ensure bool) error {
 	}
 
 	if err := collectionsBucket.DeleteBucket(ck); err != nil {
-		return fmt.Errorf("delete key: %w", err)
+		return fmt.Errorf("delete collection bucket: %w", err)
 	}
 
 	return nil
@@ -308,12 +308,12 @@ func (c *Collections[C, K, V]) DeleteKey(key K, ensure bool) error {
 			collection.bucketCache = collectionsBucket.Bucket(k)
 			return collection.Delete(key, false)
 		}); err != nil {
-			return fmt.Errorf("delete key in keys bucket: %w", err)
+			return fmt.Errorf("delete key in collection bucket: %w", err)
 		}
 	}
 
 	if err := keysBucket.DeleteBucket(k); err != nil {
-		return fmt.Errorf("delete key: %w", err)
+		return fmt.Errorf("delete key bucket: %w", err)
 	}
 
 	return nil
@@ -321,7 +321,7 @@ func (c *Collections[C, K, V]) DeleteKey(key K, ensure bool) error {
 
 // IterateCollections iterates over collection keys in the lexicographical order
 // of keys.
-func (c *Collections[C, K, V]) IterateCollections(start *C, reverse bool, f func(K) (bool, error)) (next *C, err error) {
+func (c *Collections[C, K, V]) IterateCollections(start *C, reverse bool, f func(C) (bool, error)) (next *C, err error) {
 	collectionsBucket, err := c.collectionsBucket(false)
 	if err != nil {
 		return nil, fmt.Errorf("collections bucket: %w", err)
@@ -330,9 +330,9 @@ func (c *Collections[C, K, V]) IterateCollections(start *C, reverse bool, f func
 		return nil, nil
 	}
 	return iterateKeys(collectionsBucket, c.definition.collectionKeyEncoding, start, reverse, func(k, _ []byte) (bool, error) {
-		key, err := c.definition.keyEncoding.Decode(k)
+		key, err := c.definition.collectionKeyEncoding.Decode(k)
 		if err != nil {
-			return false, fmt.Errorf("decode key: %w", err)
+			return false, fmt.Errorf("decode collection key: %w", err)
 		}
 
 		return f(key)
@@ -356,7 +356,7 @@ func (c *Collections[C, K, V]) PageOfCollections(number, limit int, reverse bool
 
 // IterateCollectionsWithKey iterates over collection keys that contian the
 // provided key in the lexicographical order of collection keys.
-func (c *Collections[C, K, V]) IterateCollectionsWithKey(key K, start *C, reverse bool, f func(K) (bool, error)) (next *C, err error) {
+func (c *Collections[C, K, V]) IterateCollectionsWithKey(key K, start *C, reverse bool, f func(C) (bool, error)) (next *C, err error) {
 	k, err := c.definition.keyEncoding.Encode(key)
 	if err != nil {
 		return nil, fmt.Errorf("encode key: %w", err)
@@ -373,9 +373,9 @@ func (c *Collections[C, K, V]) IterateCollectionsWithKey(key K, start *C, revers
 		return nil, nil
 	}
 	return iterateKeys(keyBucket, c.definition.collectionKeyEncoding, start, reverse, func(k, _ []byte) (bool, error) {
-		key, err := c.definition.keyEncoding.Decode(k)
+		key, err := c.definition.collectionKeyEncoding.Decode(k)
 		if err != nil {
-			return false, fmt.Errorf("decode key: %w", err)
+			return false, fmt.Errorf("decode collection key: %w", err)
 		}
 
 		return f(key)
