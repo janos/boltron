@@ -15,12 +15,13 @@ import (
 // CollectionDefinition defines the most basic data model which is a Collection
 // of keys and values. Each key is a unique within a Collection.
 type CollectionDefinition[K, V any] struct {
-	bucketName    []byte
+	bucketPath    [][]byte
 	keyEncoding   Encoding[K]
 	valueEncoding Encoding[V]
 	fillPercent   float64
 	errNotFound   error
 	errKeyExists  error
+	saveCallback  func(key []byte) error
 }
 
 // CollectionOptions provides additional configuration for a Collection.
@@ -46,7 +47,7 @@ func NewCollectionDefinition[K, V any](
 		o = new(CollectionOptions)
 	}
 	return &CollectionDefinition[K, V]{
-		bucketName:    []byte("boltron: collection: " + name),
+		bucketPath:    bucketPath("boltron: collection: " + name),
 		keyEncoding:   keyEncoding,
 		valueEncoding: valueEncoding,
 		errNotFound:   withDefaultError(o.ErrNotFound, ErrNotFound),
@@ -74,7 +75,7 @@ func (c *Collection[K, V]) bucket(create bool) (*bolt.Bucket, error) {
 	if c.bucketCache != nil {
 		return c.bucketCache, nil
 	}
-	bucket, err := rootBucket(c.tx, create, c.definition.bucketName)
+	bucket, err := deepBucket(c.tx, create, c.definition.bucketPath...)
 	if err != nil {
 		return nil, err
 	}
@@ -146,6 +147,13 @@ func (c *Collection[K, V]) Save(key K, value V, overwrite bool) (overwritten boo
 	if overwritten && !overwrite {
 		return false, c.definition.errKeyExists
 	}
+
+	if c.definition.saveCallback != nil {
+		if err := c.definition.saveCallback(k); err != nil {
+			return false, fmt.Errorf("save callback: %w", err)
+		}
+	}
+
 	return overwritten, bucket.Put(k, v)
 }
 

@@ -13,7 +13,8 @@
 // There are three basic types with their definitions: Collection, Association
 // and List.
 //
-// One complex type Lists provides methods to manage dynamically created lists.
+// One complex types Collections and Lists provides methods to manage
+// dynamically created collections and lists.
 package boltron
 
 import (
