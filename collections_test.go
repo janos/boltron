@@ -839,9 +839,10 @@ func TestCollections_ErrCollectionNotFound_and_ErrKeyNotFound(t *testing.T) {
 	})
 }
 
-func TestCollections_customErrNotFound(t *testing.T) {
+func TestCollections_customErrCollectionNotFound_and_customErrKeyNotFound(t *testing.T) {
 
-	errNotFoundCustom := errors.New("custom not found error")
+	errCollectionNotFoundCustom := errors.New("custom collection not found error")
+	errKeyNotFoundCustom := errors.New("custom key not found error")
 
 	customElectionsDefinition := boltron.NewCollectionsDefinition(
 		"elections",
@@ -849,7 +850,8 @@ func TestCollections_customErrNotFound(t *testing.T) {
 		boltron.StringEncoding,             // voter id
 		boltron.NewJSONEncoding[*ballot](), // ballot with a vote
 		&boltron.CollectionsOptions{
-			ErrNotFound: errNotFoundCustom,
+			ErrCollectionNotFound: errCollectionNotFoundCustom,
+			ErrKeyNotFound:        errKeyNotFoundCustom,
 		},
 	)
 
@@ -871,13 +873,13 @@ func TestCollections_customErrNotFound(t *testing.T) {
 		assert(t, "", has, false)
 
 		err = elections.DeleteCollection(0, true)
-		assertError(t, "", err, errNotFoundCustom)
+		assertError(t, "", err, errCollectionNotFoundCustom)
 
 		err = elections.DeleteCollection(0, false)
 		assertError(t, "", err, nil)
 
 		err = elections.DeleteKey("john", true)
-		assertError(t, "", err, errNotFoundCustom)
+		assertError(t, "", err, errKeyNotFoundCustom)
 
 		err = elections.DeleteKey("john", false)
 		assertError(t, "", err, nil)
@@ -911,13 +913,13 @@ func TestCollections_customErrNotFound(t *testing.T) {
 		assert(t, "", has, false)
 
 		err = elections.DeleteCollection(0, true)
-		assertError(t, "", err, errNotFoundCustom)
+		assertError(t, "", err, errCollectionNotFoundCustom)
 
 		err = elections.DeleteCollection(0, false)
 		assertError(t, "", err, nil)
 
 		err = elections.DeleteKey("john", true)
-		assertError(t, "", err, errNotFoundCustom)
+		assertError(t, "", err, errKeyNotFoundCustom)
 
 		err = elections.DeleteKey("john", false)
 		assertError(t, "", err, nil)

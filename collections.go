@@ -23,7 +23,8 @@ type CollectionsDefinition[C, K, V any] struct {
 	valueEncoding         Encoding[V]
 	fillPercent           float64
 	uniqueKeys            bool
-	errNotFound           error
+	errCollectionNotFound error
+	errKeyNotFound        error
 	errKeyExists          error
 }
 
@@ -35,9 +36,11 @@ type CollectionsOptions struct {
 	FillPercent float64
 	// UniqueKeys marks if a key can be added only to a single collection.
 	UniqueKeys bool
-	// ErrKeyNotFound is returned if the key is not found or if the collection
-	// identified by its key is not found.
-	ErrNotFound error
+	// ErrCollectionNotFound is returned if the collection identified by its key
+	// is not found.
+	ErrCollectionNotFound error
+	// ErrKeyNotFound is returned if the key is not found.
+	ErrKeyNotFound error
 	// ErrKeyExists is returned if UniqueValues option is set to true and the
 	// key already exists in another collection.
 	ErrKeyExists error
@@ -63,7 +66,8 @@ func NewCollectionsDefinition[C, K, V any](
 		valueEncoding:         valueEncoding,
 		fillPercent:           o.FillPercent,
 		uniqueKeys:            o.UniqueKeys,
-		errNotFound:           withDefaultError(o.ErrNotFound, ErrNotFound),
+		errCollectionNotFound: withDefaultError(o.ErrCollectionNotFound, ErrNotFound),
+		errKeyNotFound:        withDefaultError(o.ErrKeyNotFound, ErrNotFound),
 		errKeyExists:          withDefaultError(o.ErrKeyExists, ErrKeyExists),
 	}
 }
@@ -131,7 +135,7 @@ func (c *Collections[C, K, V]) Collection(key C) (collection *Collection[K, V], 
 			keyEncoding:   c.definition.keyEncoding,
 			valueEncoding: c.definition.valueEncoding,
 			fillPercent:   c.definition.fillPercent,
-			errNotFound:   c.definition.errNotFound,
+			errNotFound:   c.definition.errKeyNotFound,
 			saveCallback: func(key []byte) error {
 				keysBucket, err := c.keysBucket(true)
 				if err != nil {
@@ -210,7 +214,7 @@ func (c *Collections[C, K, V]) DeleteCollection(key C, ensure bool) error {
 	}
 	if collectionsBucket == nil {
 		if ensure {
-			return c.definition.errNotFound
+			return c.definition.errCollectionNotFound
 		}
 		return nil
 	}
@@ -218,7 +222,7 @@ func (c *Collections[C, K, V]) DeleteCollection(key C, ensure bool) error {
 	collectionBucket := collectionsBucket.Bucket(ck)
 	if collectionBucket == nil {
 		if ensure {
-			return c.definition.errNotFound
+			return c.definition.errCollectionNotFound
 		}
 		return nil
 	}
@@ -274,7 +278,7 @@ func (c *Collections[C, K, V]) DeleteKey(key K, ensure bool) error {
 	}
 	if keysBucket == nil {
 		if ensure {
-			return c.definition.errNotFound
+			return c.definition.errKeyNotFound
 		}
 		return nil
 	}
@@ -282,7 +286,7 @@ func (c *Collections[C, K, V]) DeleteKey(key K, ensure bool) error {
 	keyBucket := keysBucket.Bucket(k)
 	if keyBucket == nil {
 		if ensure {
-			return c.definition.errNotFound
+			return c.definition.errKeyNotFound
 		}
 		return nil
 	}
@@ -296,7 +300,7 @@ func (c *Collections[C, K, V]) DeleteKey(key K, ensure bool) error {
 		collection := (&CollectionDefinition[K, V]{
 			keyEncoding:   c.definition.keyEncoding,
 			valueEncoding: c.definition.valueEncoding,
-			errNotFound:   c.definition.errNotFound,
+			errNotFound:   c.definition.errKeyNotFound,
 			errKeyExists:  c.definition.errKeyExists,
 		}).Collection(nil)
 
