@@ -165,7 +165,7 @@ func (a *Associations[A, K, V]) Association(key A) (association *Association[K, 
 					if a.definition.uniqueKeys {
 						firstKey, _ := keyIndex.Cursor().First()
 						if firstKey != nil && !bytes.Equal(firstKey, ak) {
-							return a.definition.errValueExists
+							return a.definition.errKeyExists
 						}
 					}
 				} else {
@@ -306,6 +306,13 @@ func (a *Associations[A, K, V]) DeleteKey(key K, ensure bool) error {
 	keysIndexBucket, err := a.keysIndexBucket(false)
 	if err != nil {
 		return fmt.Errorf("lists bucket: %w", err)
+	}
+
+	if keysIndexBucket == nil {
+		if ensure {
+			return a.definition.errNotFound
+		}
+		return nil
 	}
 
 	keyIndexBucket := keysIndexBucket.Bucket(k)
