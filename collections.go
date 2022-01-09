@@ -354,7 +354,7 @@ func (c *Collections[C, K, V]) PageOfCollections(number, limit int, reverse bool
 	})
 }
 
-// IterateCollectionsWithKey iterates over collection keys that contian the
+// IterateCollectionsWithKey iterates over collection keys that contain the
 // provided key in the lexicographical order of collection keys.
 func (c *Collections[C, K, V]) IterateCollectionsWithKey(key K, start *C, reverse bool, f func(C) (bool, error)) (next *C, err error) {
 	k, err := c.definition.keyEncoding.Encode(key)
