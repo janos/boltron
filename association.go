@@ -15,13 +15,14 @@ import (
 // AssociationDefinition defines one-to-one relation between keys and values.
 // The relation is unique.
 type AssociationDefinition[K, V any] struct {
-	bucketNameKeys   []byte
-	bucketNameValues []byte
+	bucketPathKeys   [][]byte
+	bucketPathValues [][]byte
 	keyEncoding      Encoding[K]
 	valueEncoding    Encoding[V]
 	errNotFound      error
 	errKeyExists     error
 	errValueExists   error
+	setCallback      func(key []byte) error
 }
 
 // AssociationOptions provides additional configuration for an Association.
@@ -46,8 +47,8 @@ func NewAssociationDefinition[K, V any](
 		o = new(AssociationOptions)
 	}
 	return &AssociationDefinition[K, V]{
-		bucketNameKeys:   []byte("boltron: association: " + name + " keys"),
-		bucketNameValues: []byte("boltron: association: " + name + " values"),
+		bucketPathKeys:   bucketPath("boltron: association: " + name + " keys"),
+		bucketPathValues: bucketPath("boltron: association: " + name + " values"),
 		keyEncoding:      keyEncoding,
 		valueEncoding:    valueEncoding,
 		errNotFound:      withDefaultError(o.ErrNotFound, ErrNotFound),
@@ -77,7 +78,7 @@ func (a *Association[K, V]) keysBucket(create bool) (*bolt.Bucket, error) {
 	if a.keysBucketCache != nil {
 		return a.keysBucketCache, nil
 	}
-	bucket, err := rootBucket(a.tx, create, a.definition.bucketNameKeys)
+	bucket, err := deepBucket(a.tx, create, a.definition.bucketPathKeys...)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +90,7 @@ func (a *Association[K, V]) valuesBucket(create bool) (*bolt.Bucket, error) {
 	if a.valuesBucketCache != nil {
 		return a.valuesBucketCache, nil
 	}
-	bucket, err := rootBucket(a.tx, create, a.definition.bucketNameValues)
+	bucket, err := deepBucket(a.tx, create, a.definition.bucketPathValues...)
 	if err != nil {
 		return nil, err
 	}
@@ -231,6 +232,12 @@ func (a *Association[K, V]) Set(key K, value V) error {
 	}
 	if err := valuesBucket.Put(v, k); err != nil {
 		return fmt.Errorf("put value: %w", err)
+	}
+
+	if a.definition.setCallback != nil {
+		if err := a.definition.setCallback(k); err != nil {
+			return fmt.Errorf("set callback: %w", err)
+		}
 	}
 
 	return nil
