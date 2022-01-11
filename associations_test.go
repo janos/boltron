@@ -108,7 +108,7 @@ func TestAssociations(t *testing.T) {
 		ballots := ballotsDefinition.Associations(tx)
 
 		err := ballots.DeleteLeft("unknown", true)
-		assertErrorFail(t, "", err, boltron.ErrNotFound)
+		assertErrorFail(t, "", err, boltron.ErrLeftNotFound)
 
 		err = ballots.DeleteLeft(deletedLeft, true)
 		assertErrorFail(t, "", err, nil)
@@ -782,7 +782,7 @@ func TestAssociations_ErrAssociationNotFound_and_ErrNotFound(t *testing.T) {
 		assertError(t, "", err, nil)
 
 		err = ballots.DeleteLeft("john", true)
-		assertError(t, "", err, boltron.ErrNotFound)
+		assertError(t, "", err, boltron.ErrLeftNotFound)
 
 		err = ballots.DeleteLeft("john", false)
 		assertError(t, "", err, nil)
@@ -821,17 +821,18 @@ func TestAssociations_ErrAssociationNotFound_and_ErrNotFound(t *testing.T) {
 		assertError(t, "", err, nil)
 
 		err = ballots.DeleteLeft("john", true)
-		assertError(t, "", err, boltron.ErrNotFound)
+		assertError(t, "", err, boltron.ErrLeftNotFound)
 
 		err = ballots.DeleteLeft("john", false)
 		assertError(t, "", err, nil)
 	})
 }
 
-func TestAssociations_customErrAssociationNotFound_and_customErrNotFound(t *testing.T) {
+func TestAssociations_customErrAssociationNotFound_and_customErrLeftNotFound_and_customErrRightNotFound(t *testing.T) {
 
 	errAssociationNotFoundCustom := errors.New("custom association not found error")
-	errNotFoundCustom := errors.New("custom not found error")
+	errLeftNotFoundCustom := errors.New("custom left not found error")
+	errRightNotFoundCustom := errors.New("custom right not found error")
 
 	customBallotsDefinition := boltron.NewAssociationsDefinition(
 		"ballots",
@@ -840,7 +841,8 @@ func TestAssociations_customErrAssociationNotFound_and_customErrNotFound(t *test
 		boltron.Uint64Base36Encoding,       // ballot serial number
 		&boltron.AssociationsOptions{
 			ErrAssociationNotFound: errAssociationNotFoundCustom,
-			ErrNotFound:            errNotFoundCustom,
+			ErrLeftNotFound:        errLeftNotFoundCustom,
+			ErrRightNotFound:       errRightNotFoundCustom,
 		},
 	)
 
@@ -868,7 +870,7 @@ func TestAssociations_customErrAssociationNotFound_and_customErrNotFound(t *test
 		assertError(t, "", err, nil)
 
 		err = ballots.DeleteLeft("john", true)
-		assertError(t, "", err, errNotFoundCustom)
+		assertError(t, "", err, errLeftNotFoundCustom)
 
 		err = ballots.DeleteLeft("john", false)
 		assertError(t, "", err, nil)
@@ -907,7 +909,7 @@ func TestAssociations_customErrAssociationNotFound_and_customErrNotFound(t *test
 		assertError(t, "", err, nil)
 
 		err = ballots.DeleteLeft("john", true)
-		assertError(t, "", err, errNotFoundCustom)
+		assertError(t, "", err, errLeftNotFoundCustom)
 
 		err = ballots.DeleteLeft("john", false)
 		assertError(t, "", err, nil)

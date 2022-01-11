@@ -14,6 +14,12 @@ import (
 )
 
 var (
+	// ErrLeftNotFound is the default error if requested left value in Association does not
+	// exist.
+	ErrLeftNotFound = errors.New("boltron: left value not found")
+	// ErrRightNotFound is the default error if requested right value in Association does not
+	// exist.
+	ErrRightNotFound = errors.New("boltron: right value not found")
 	// ErrLeftExists is the default error if the left value already exists in
 	// the Association.
 	ErrLeftExists = errors.New("boltron: left value exists")
@@ -25,20 +31,23 @@ var (
 // AssociationDefinition defines one-to-one relation between values named left
 // and right. The relation is unique.
 type AssociationDefinition[L, R any] struct {
-	bucketPathLeft  [][]byte
-	bucketPathRight [][]byte
-	leftEncoding    Encoding[L]
-	rightEncoding   Encoding[R]
-	errNotFound     error
-	errLeftExists   error
-	errRightExists  error
-	setCallback     func(left []byte) error
+	bucketPathLeft   [][]byte
+	bucketPathRight  [][]byte
+	leftEncoding     Encoding[L]
+	rightEncoding    Encoding[R]
+	errLeftNotFound  error
+	errRightNotFound error
+	errLeftExists    error
+	errRightExists   error
+	setCallback      func(left []byte) error
 }
 
 // AssociationOptions provides additional configuration for an Association.
 type AssociationOptions struct {
-	// ErrNotFound is returned if the left or right value is not found.
-	ErrNotFound error
+	// ErrLeftNotFound is returned if the left value is not found.
+	ErrLeftNotFound error
+	// ErrRightNotFound is returned if the right value is not found.
+	ErrRightNotFound error
 	// ErrLeftExists is returned if the left value in relation already exists.
 	ErrLeftExists error
 	// ErrRightExists is returned if the right value in relation already exists.
@@ -57,13 +66,14 @@ func NewAssociationDefinition[L, R any](
 		o = new(AssociationOptions)
 	}
 	return &AssociationDefinition[L, R]{
-		bucketPathLeft:  bucketPath("boltron: association: " + name + " left"),
-		bucketPathRight: bucketPath("boltron: association: " + name + " right"),
-		leftEncoding:    leftEncoding,
-		rightEncoding:   rightEncoding,
-		errNotFound:     withDefaultError(o.ErrNotFound, ErrNotFound),
-		errLeftExists:   withDefaultError(o.ErrLeftExists, ErrLeftExists),
-		errRightExists:  withDefaultError(o.ErrRightExists, ErrRightExists),
+		bucketPathLeft:   bucketPath("boltron: association: " + name + " left"),
+		bucketPathRight:  bucketPath("boltron: association: " + name + " right"),
+		leftEncoding:     leftEncoding,
+		rightEncoding:    rightEncoding,
+		errLeftNotFound:  withDefaultError(o.ErrLeftNotFound, ErrLeftNotFound),
+		errRightNotFound: withDefaultError(o.ErrRightNotFound, ErrRightNotFound),
+		errLeftExists:    withDefaultError(o.ErrLeftExists, ErrLeftExists),
+		errRightExists:   withDefaultError(o.ErrRightExists, ErrRightExists),
 	}
 }
 
@@ -159,12 +169,12 @@ func (a *Association[L, R]) Left(right R) (left L, err error) {
 		return left, fmt.Errorf("right bucket: %w", err)
 	}
 	if rightBucket == nil {
-		return left, a.definition.errNotFound
+		return left, a.definition.errLeftNotFound
 	}
 
 	l := rightBucket.Get(r)
 	if l == nil {
-		return left, a.definition.errNotFound
+		return left, a.definition.errLeftNotFound
 	}
 	left, err = a.definition.leftEncoding.Decode(l)
 	if err != nil {
@@ -185,11 +195,11 @@ func (a *Association[L, R]) Right(left L) (right R, err error) {
 		return right, fmt.Errorf("left bucket: %w", err)
 	}
 	if leftBucket == nil {
-		return right, a.definition.errNotFound
+		return right, a.definition.errRightNotFound
 	}
 	r := leftBucket.Get(l)
 	if r == nil {
-		return right, a.definition.errNotFound
+		return right, a.definition.errRightNotFound
 	}
 	right, err = a.definition.rightEncoding.Decode(r)
 	if err != nil {
@@ -269,7 +279,7 @@ func (a *Association[L, R]) DeleteByLeft(left L, ensure bool) error {
 
 	if leftBucket == nil {
 		if ensure {
-			return a.definition.errNotFound
+			return a.definition.errLeftNotFound
 		}
 		return nil
 	}
@@ -277,7 +287,7 @@ func (a *Association[L, R]) DeleteByLeft(left L, ensure bool) error {
 	r := leftBucket.Get(l)
 	if r == nil {
 		if ensure {
-			return a.definition.errNotFound
+			return a.definition.errLeftNotFound
 		}
 		return nil
 	}
@@ -293,7 +303,7 @@ func (a *Association[L, R]) DeleteByLeft(left L, ensure bool) error {
 
 	if rightBucket == nil {
 		if ensure {
-			return a.definition.errNotFound
+			return a.definition.errLeftNotFound
 		}
 		return nil
 	}
@@ -321,7 +331,7 @@ func (a *Association[L, R]) DeleteByRight(right R, ensure bool) error {
 
 	if rightBucket == nil {
 		if ensure {
-			return a.definition.errNotFound
+			return a.definition.errRightNotFound
 		}
 		return nil
 	}
@@ -329,7 +339,7 @@ func (a *Association[L, R]) DeleteByRight(right R, ensure bool) error {
 	l := rightBucket.Get(r)
 	if l == nil {
 		if ensure {
-			return a.definition.errNotFound
+			return a.definition.errRightNotFound
 		}
 		return nil
 	}
@@ -341,7 +351,7 @@ func (a *Association[L, R]) DeleteByRight(right R, ensure bool) error {
 
 	if leftBucket == nil {
 		if ensure {
-			return a.definition.errNotFound
+			return a.definition.errRightNotFound
 		}
 		return nil
 	}

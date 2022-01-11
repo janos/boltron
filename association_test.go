@@ -735,7 +735,7 @@ func TestAssociation_ErrNotFound(t *testing.T) {
 		numbers := numbersDefinition.Association(tx)
 
 		l, err := numbers.Left(0)
-		assertError(t, "", err, boltron.ErrNotFound)
+		assertError(t, "", err, boltron.ErrLeftNotFound)
 		assert(t, "", l, "")
 
 		has, err := numbers.HasRight(0)
@@ -743,7 +743,7 @@ func TestAssociation_ErrNotFound(t *testing.T) {
 		assert(t, "", has, false)
 
 		r, err := numbers.Right("missing")
-		assertError(t, "", err, boltron.ErrNotFound)
+		assertError(t, "", err, boltron.ErrRightNotFound)
 		assert(t, "", r, 0)
 
 		has, err = numbers.HasLeft("missing")
@@ -751,13 +751,13 @@ func TestAssociation_ErrNotFound(t *testing.T) {
 		assert(t, "", has, false)
 
 		err = numbers.DeleteByLeft("missing", true)
-		assertError(t, "", err, boltron.ErrNotFound)
+		assertError(t, "", err, boltron.ErrLeftNotFound)
 
 		err = numbers.DeleteByLeft("missing", false)
 		assertError(t, "", err, nil)
 
 		err = numbers.DeleteByRight(0, true)
-		assertError(t, "", err, boltron.ErrNotFound)
+		assertError(t, "", err, boltron.ErrRightNotFound)
 
 		err = numbers.DeleteByRight(0, false)
 		assertError(t, "", err, nil)
@@ -774,7 +774,7 @@ func TestAssociation_ErrNotFound(t *testing.T) {
 		numbers := numbersDefinition.Association(tx)
 
 		l, err := numbers.Left(0)
-		assertError(t, "", err, boltron.ErrNotFound)
+		assertError(t, "", err, boltron.ErrLeftNotFound)
 		assert(t, "", l, "")
 
 		has, err := numbers.HasRight(0)
@@ -782,7 +782,7 @@ func TestAssociation_ErrNotFound(t *testing.T) {
 		assert(t, "", has, false)
 
 		r, err := numbers.Right("missing")
-		assertError(t, "", err, boltron.ErrNotFound)
+		assertError(t, "", err, boltron.ErrRightNotFound)
 		assert(t, "", r, 0)
 
 		has, err = numbers.HasLeft("missing")
@@ -790,29 +790,31 @@ func TestAssociation_ErrNotFound(t *testing.T) {
 		assert(t, "", has, false)
 
 		err = numbers.DeleteByLeft("missing", true)
-		assertError(t, "", err, boltron.ErrNotFound)
+		assertError(t, "", err, boltron.ErrLeftNotFound)
 
 		err = numbers.DeleteByLeft("missing", false)
 		assertError(t, "", err, nil)
 
 		err = numbers.DeleteByRight(0, true)
-		assertError(t, "", err, boltron.ErrNotFound)
+		assertError(t, "", err, boltron.ErrRightNotFound)
 
 		err = numbers.DeleteByRight(0, false)
 		assertError(t, "", err, nil)
 	})
 }
 
-func TestAssociation_customErrNotFound(t *testing.T) {
+func TestAssociation_customErrLeftNotFound_and_customErrRightNotFound(t *testing.T) {
 
-	errNotFoundCustom := errors.New("custom not found error")
+	errLeftNotFoundCustom := errors.New("custom left not found error")
+	errRightNotFoundCustom := errors.New("custom right not found error")
 
 	customNumbersDefinition := boltron.NewAssociationDefinition(
 		"numbers",
 		boltron.StringEncoding,
 		boltron.IntBase10Encoding,
 		&boltron.AssociationOptions{
-			ErrNotFound: errNotFoundCustom,
+			ErrLeftNotFound:  errLeftNotFoundCustom,
+			ErrRightNotFound: errRightNotFoundCustom,
 		},
 	)
 
@@ -822,7 +824,7 @@ func TestAssociation_customErrNotFound(t *testing.T) {
 		numbers := customNumbersDefinition.Association(tx)
 
 		l, err := numbers.Left(0)
-		assertError(t, "", err, errNotFoundCustom)
+		assertError(t, "", err, errLeftNotFoundCustom)
 		assert(t, "", l, "")
 
 		has, err := numbers.HasRight(0)
@@ -830,7 +832,7 @@ func TestAssociation_customErrNotFound(t *testing.T) {
 		assert(t, "", has, false)
 
 		r, err := numbers.Right("missing")
-		assertError(t, "", err, errNotFoundCustom)
+		assertError(t, "", err, errRightNotFoundCustom)
 		assert(t, "", r, 0)
 
 		has, err = numbers.HasLeft("missing")
@@ -838,13 +840,13 @@ func TestAssociation_customErrNotFound(t *testing.T) {
 		assert(t, "", has, false)
 
 		err = numbers.DeleteByLeft("missing", true)
-		assertError(t, "", err, errNotFoundCustom)
+		assertError(t, "", err, errLeftNotFoundCustom)
 
 		err = numbers.DeleteByLeft("missing", false)
 		assertError(t, "", err, nil)
 
 		err = numbers.DeleteByRight(0, true)
-		assertError(t, "", err, errNotFoundCustom)
+		assertError(t, "", err, errRightNotFoundCustom)
 
 		err = numbers.DeleteByRight(0, false)
 		assertError(t, "", err, nil)
@@ -861,7 +863,7 @@ func TestAssociation_customErrNotFound(t *testing.T) {
 		numbers := customNumbersDefinition.Association(tx)
 
 		l, err := numbers.Left(0)
-		assertError(t, "", err, errNotFoundCustom)
+		assertError(t, "", err, errLeftNotFoundCustom)
 		assert(t, "", l, "")
 
 		has, err := numbers.HasRight(0)
@@ -869,7 +871,7 @@ func TestAssociation_customErrNotFound(t *testing.T) {
 		assert(t, "", has, false)
 
 		r, err := numbers.Right("missing")
-		assertError(t, "", err, errNotFoundCustom)
+		assertError(t, "", err, errRightNotFoundCustom)
 		assert(t, "", r, 0)
 
 		has, err = numbers.HasLeft("missing")
@@ -877,13 +879,13 @@ func TestAssociation_customErrNotFound(t *testing.T) {
 		assert(t, "", has, false)
 
 		err = numbers.DeleteByLeft("missing", true)
-		assertError(t, "", err, errNotFoundCustom)
+		assertError(t, "", err, errLeftNotFoundCustom)
 
 		err = numbers.DeleteByLeft("missing", false)
 		assertError(t, "", err, nil)
 
 		err = numbers.DeleteByRight(0, true)
-		assertError(t, "", err, errNotFoundCustom)
+		assertError(t, "", err, errRightNotFoundCustom)
 
 		err = numbers.DeleteByRight(0, false)
 		assertError(t, "", err, nil)

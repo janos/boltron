@@ -24,7 +24,8 @@ type AssociationsDefinition[A, L, R any] struct {
 	rightEncoding          Encoding[R]
 	uniqueLeftValues       bool
 	errAssociationNotFound error
-	errNotFound            error
+	errLeftNotFound        error
+	errRightNotFound       error
 	errLeftExists          error
 	errRightExists         error
 }
@@ -38,9 +39,12 @@ type AssociationsOptions struct {
 	// ErrAssociationNotFound is returned if the association identified by the
 	// key is not found.
 	ErrAssociationNotFound error
-	// ErrNotFound is returned if left or right value is not found in the same
+	// ErrLeftNotFound is returned if left value is not found in the same
 	// Association.
-	ErrNotFound error
+	ErrLeftNotFound error
+	// ErrRightNotFound is returned if right value is not found in the same
+	// Association.
+	ErrRightNotFound error
 	// ErrLeftExists is returned if UniqueValues option is set to true and the
 	// left value already exists in another association. Also if the left value
 	// exists in the same association.
@@ -70,7 +74,8 @@ func NewAssociationsDefinition[A, L, R any](
 		rightEncoding:          rightEncoding,
 		uniqueLeftValues:       o.UniqueLeftValues,
 		errAssociationNotFound: withDefaultError(o.ErrAssociationNotFound, ErrNotFound),
-		errNotFound:            withDefaultError(o.ErrNotFound, ErrNotFound),
+		errLeftNotFound:        withDefaultError(o.ErrLeftNotFound, ErrLeftNotFound),
+		errRightNotFound:       withDefaultError(o.ErrRightNotFound, ErrRightNotFound),
 		errLeftExists:          withDefaultError(o.ErrLeftExists, ErrLeftExists),
 		errRightExists:         withDefaultError(o.ErrRightExists, ErrRightExists),
 	}
@@ -148,13 +153,14 @@ func (a *Associations[A, L, R]) Association(key A) (association *Association[L, 
 	return &Association[L, R]{
 		tx: a.tx,
 		definition: &AssociationDefinition[L, R]{
-			bucketPathLeft:  [][]byte{a.definition.bucketNameLeft, ak},
-			bucketPathRight: [][]byte{a.definition.bucketNameRight, ak},
-			leftEncoding:    a.definition.leftEncoding,
-			rightEncoding:   a.definition.rightEncoding,
-			errNotFound:     a.definition.errNotFound,
-			errLeftExists:   a.definition.errLeftExists,
-			errRightExists:  a.definition.errRightExists,
+			bucketPathLeft:   [][]byte{a.definition.bucketNameLeft, ak},
+			bucketPathRight:  [][]byte{a.definition.bucketNameRight, ak},
+			leftEncoding:     a.definition.leftEncoding,
+			rightEncoding:    a.definition.rightEncoding,
+			errLeftNotFound:  a.definition.errLeftNotFound,
+			errRightNotFound: a.definition.errRightNotFound,
+			errLeftExists:    a.definition.errLeftExists,
+			errRightExists:   a.definition.errRightExists,
 			setCallback: func(left []byte) error {
 				leftIndexBuckets, err := a.leftIndexBuckets(true)
 				if err != nil {
@@ -310,7 +316,7 @@ func (a *Associations[A, L, R]) DeleteLeft(left L, ensure bool) error {
 
 	if leftIndexBuckets == nil {
 		if ensure {
-			return a.definition.errNotFound
+			return a.definition.errLeftNotFound
 		}
 		return nil
 	}
@@ -318,7 +324,7 @@ func (a *Associations[A, L, R]) DeleteLeft(left L, ensure bool) error {
 	leftIndexBucket := leftIndexBuckets.Bucket(l)
 	if leftIndexBucket == nil {
 		if ensure {
-			return a.definition.errNotFound
+			return a.definition.errLeftNotFound
 		}
 		return nil
 	}
@@ -329,7 +335,7 @@ func (a *Associations[A, L, R]) DeleteLeft(left L, ensure bool) error {
 	}
 	if leftBuckets == nil {
 		if ensure {
-			return a.definition.errNotFound
+			return a.definition.errLeftNotFound
 		}
 		return nil
 	}
@@ -340,16 +346,17 @@ func (a *Associations[A, L, R]) DeleteLeft(left L, ensure bool) error {
 	}
 	if rightBuckets == nil {
 		if ensure {
-			return a.definition.errNotFound
+			return a.definition.errRightNotFound
 		}
 		return nil
 	}
 
 	if leftBuckets != nil && rightBuckets != nil {
 		association := (&AssociationDefinition[L, R]{
-			leftEncoding:  a.definition.leftEncoding,
-			rightEncoding: a.definition.rightEncoding,
-			errNotFound:   a.definition.errNotFound,
+			leftEncoding:     a.definition.leftEncoding,
+			rightEncoding:    a.definition.rightEncoding,
+			errLeftNotFound:  a.definition.errLeftNotFound,
+			errRightNotFound: a.definition.errRightNotFound,
 		}).Association(nil)
 
 		if err := leftIndexBucket.ForEach(func(ak, _ []byte) error {
