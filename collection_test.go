@@ -865,10 +865,10 @@ func newRecordsDB(t testing.TB) *bolt.DB {
 	return db
 }
 
-func recordElements(is ...int) []boltron.Element[int, *Record] {
-	s := make([]boltron.Element[int, *Record], 0, len(is))
+func recordElements(is ...int) []boltron.CollectionElement[int, *Record] {
+	s := make([]boltron.CollectionElement[int, *Record], 0, len(is))
 	for _, i := range is {
-		s = append(s, boltron.Element[int, *Record]{
+		s = append(s, boltron.CollectionElement[int, *Record]{
 			Key:   testRecords[i].ID,
 			Value: testRecords[i],
 		})
