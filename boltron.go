@@ -24,13 +24,6 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-// Element is the type returned by pagination methods as slice elements that
-// cointain both key and value.
-type Element[K, V any] struct {
-	Key   K
-	Value V
-}
-
 func deepBucket(tx *bolt.Tx, create bool, path ...[]byte) (*bolt.Bucket, error) {
 	length := len(path)
 	if length < 1 {
@@ -232,13 +225,6 @@ func page[E any](bucket *bolt.Bucket, bucketOfBuckets bool, number, limit int, r
 	}
 
 	return s, totalElements, pages, err
-}
-
-func newElement[K, V any](k K, v V) (Element[K, V], error) {
-	return Element[K, V]{
-		Key:   k,
-		Value: v,
-	}, nil
 }
 
 func withDefaultError(v, d error) error {

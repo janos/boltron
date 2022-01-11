@@ -285,13 +285,6 @@ type ListElement[V, O any] struct {
 	OrderBy O
 }
 
-func newListElement[V, O any](v V, o O) (ListElement[V, O], error) {
-	return ListElement[V, O]{
-		Value:   v,
-		OrderBy: o,
-	}, nil
-}
-
 // Page returns at most a limit of elements of values and order by instances at
 // the provided page number.
 func (l *List[V, O]) Page(number, limit int, reverse bool) (s []ListElement[V, O], totalElements, pages int, err error) {
@@ -313,7 +306,10 @@ func (l *List[V, O]) Page(number, limit int, reverse bool) (s []ListElement[V, O
 			return e, fmt.Errorf("decode order by: %w", err)
 		}
 
-		return newListElement(value, orderBy)
+		return ListElement[V, O]{
+			Value:   value,
+			OrderBy: orderBy,
+		}, nil
 	})
 }
 

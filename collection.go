@@ -246,9 +246,16 @@ func (c *Collection[K, V]) IterateValues(start *K, reverse bool, f func(V) (bool
 	})
 }
 
+// CollectionElement is the type returned by pagination methods as slice elements that
+// cointain both key and value.
+type CollectionElement[K, V any] struct {
+	Key   K
+	Value V
+}
+
 // Page returns at most a limit of elements of key/value pairs at the provided
 // page number.
-func (c *Collection[K, V]) Page(number, limit int, reverse bool) (s []Element[K, V], totalElements, pages int, err error) {
+func (c *Collection[K, V]) Page(number, limit int, reverse bool) (s []CollectionElement[K, V], totalElements, pages int, err error) {
 	bucket, err := c.bucket(false)
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("bucket: %w", err)
@@ -256,7 +263,7 @@ func (c *Collection[K, V]) Page(number, limit int, reverse bool) (s []Element[K,
 	if bucket == nil {
 		return nil, 0, 0, nil
 	}
-	return page(bucket, false, number, limit, reverse, func(k, v []byte) (e Element[K, V], err error) {
+	return page(bucket, false, number, limit, reverse, func(k, v []byte) (e CollectionElement[K, V], err error) {
 		key, err := c.definition.keyEncoding.Decode(k)
 		if err != nil {
 			return e, fmt.Errorf("key value: %w", err)
@@ -267,7 +274,10 @@ func (c *Collection[K, V]) Page(number, limit int, reverse bool) (s []Element[K,
 			return e, fmt.Errorf("decode value: %w", err)
 		}
 
-		return newElement(key, value)
+		return CollectionElement[K, V]{
+			Key:   key,
+			Value: value,
+		}, nil
 	})
 }
 

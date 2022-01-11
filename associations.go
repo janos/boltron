@@ -14,119 +14,119 @@ import (
 )
 
 // AssociationsDefinition defines a set of Associations, each identified by an
-// unique key. All associations have the same key and value encodings.
-type AssociationsDefinition[A, K, V any] struct {
-	bucketNameKeys         []byte
-	bucketNameValues       []byte
-	bucketNameKeysIndex    []byte
+// unique key. All associations have the same left and right value encodings.
+type AssociationsDefinition[A, L, R any] struct {
+	bucketNameLeft         []byte
+	bucketNameRight        []byte
+	bucketNameLeftIndex    []byte
 	associationKeyEncoding Encoding[A]
-	keyEncoding            Encoding[K]
-	valueEncoding          Encoding[V]
-	uniqueKeys             bool
+	leftEncoding           Encoding[L]
+	rightEncoding          Encoding[R]
+	uniqueLeftValues       bool
 	errAssociationNotFound error
 	errNotFound            error
-	errKeyExists           error
-	errValueExists         error
+	errLeftExists          error
+	errRightExists         error
 }
 
 // AssociationsOptions provides additional configuration for an Association
 // instance.
 type AssociationsOptions struct {
-	// UniqueKeys marks if a key can be added only to a single association.
-	UniqueKeys bool
+	// UniqueLeftValues marks if left value can be added only to a single
+	// association.
+	UniqueLeftValues bool
 	// ErrAssociationNotFound is returned if the association identified by the
 	// key is not found.
 	ErrAssociationNotFound error
-	// ErrNotFound is returned if the key or value is not found in the same
+	// ErrNotFound is returned if left or right value is not found in the same
 	// Association.
 	ErrNotFound error
-	// ErrKeyExists is returned if UniqueValues option is set to true and the
-	// key already exists in another association. Also if the key exists in the
-	// same association.
-	ErrKeyExists error
-	// ErrValueExists is returned if the value already exists in the same
-	// association.
-	ErrValueExists error
+	// ErrLeftExists is returned if UniqueValues option is set to true and the
+	// left value already exists in another association. Also if the left value
+	// exists in the same association.
+	ErrLeftExists error
+	// ErrRightExists is returned if the right value in relation already exists.
+	ErrRightExists error
 }
 
 // NewAssociationsDefinition constructs a new AssociationsDefinition with a
-// unique name and association key, key and value encodings.
-func NewAssociationsDefinition[A, K, V any](
+// unique name and association key, left and right value encodings.
+func NewAssociationsDefinition[A, L, R any](
 	name string,
 	associationKeyEncoding Encoding[A],
-	keyEncoding Encoding[K],
-	valueEncoding Encoding[V],
+	leftEncoding Encoding[L],
+	rightEncoding Encoding[R],
 	o *AssociationsOptions,
-) *AssociationsDefinition[A, K, V] {
+) *AssociationsDefinition[A, L, R] {
 	if o == nil {
 		o = new(AssociationsOptions)
 	}
-	return &AssociationsDefinition[A, K, V]{
-		bucketNameKeys:         []byte("boltron: associations: " + name + " keys"),
-		bucketNameValues:       []byte("boltron: associations: " + name + " values"),
-		bucketNameKeysIndex:    []byte("boltron: associations: " + name + " keys index"),
+	return &AssociationsDefinition[A, L, R]{
+		bucketNameLeft:         []byte("boltron: associations: " + name + " left"),
+		bucketNameRight:        []byte("boltron: associations: " + name + " right"),
+		bucketNameLeftIndex:    []byte("boltron: associations: " + name + " left index"),
 		associationKeyEncoding: associationKeyEncoding,
-		keyEncoding:            keyEncoding,
-		valueEncoding:          valueEncoding,
-		uniqueKeys:             o.UniqueKeys,
+		leftEncoding:           leftEncoding,
+		rightEncoding:          rightEncoding,
+		uniqueLeftValues:       o.UniqueLeftValues,
 		errAssociationNotFound: withDefaultError(o.ErrAssociationNotFound, ErrNotFound),
 		errNotFound:            withDefaultError(o.ErrNotFound, ErrNotFound),
-		errKeyExists:           withDefaultError(o.ErrKeyExists, ErrKeyExists),
-		errValueExists:         withDefaultError(o.ErrValueExists, ErrValueExists),
+		errLeftExists:          withDefaultError(o.ErrLeftExists, ErrLeftExists),
+		errRightExists:         withDefaultError(o.ErrRightExists, ErrRightExists),
 	}
 }
 
 // Associations returns an Associations instance that has access to the stored
 // data through the bolt transaction.
-func (d *AssociationsDefinition[A, K, V]) Associations(tx *bolt.Tx) *Associations[A, K, V] {
-	return &Associations[A, K, V]{
+func (d *AssociationsDefinition[A, L, R]) Associations(tx *bolt.Tx) *Associations[A, L, R] {
+	return &Associations[A, L, R]{
 		tx:         tx,
 		definition: d,
 	}
 }
 
 // Associations provides methods to access and change a set of Associations.
-type Associations[A, K, V any] struct {
-	tx                   *bolt.Tx
-	keysIndexBucketCache *bolt.Bucket
-	keysBucketCache      *bolt.Bucket
-	valuesBucketCache    *bolt.Bucket
-	definition           *AssociationsDefinition[A, K, V]
+type Associations[A, L, R any] struct {
+	tx                    *bolt.Tx
+	leftIndexBucketsCache *bolt.Bucket
+	leftBucketsCache      *bolt.Bucket
+	rightBucketsCache     *bolt.Bucket
+	definition            *AssociationsDefinition[A, L, R]
 }
 
-func (a *Associations[A, K, V]) keysIndexBucket(create bool) (*bolt.Bucket, error) {
-	if a.keysIndexBucketCache != nil {
-		return a.keysIndexBucketCache, nil
+func (a *Associations[A, L, R]) leftIndexBuckets(create bool) (*bolt.Bucket, error) {
+	if a.leftIndexBucketsCache != nil {
+		return a.leftIndexBucketsCache, nil
 	}
-	bucket, err := rootBucket(a.tx, create, a.definition.bucketNameKeysIndex)
+	bucket, err := rootBucket(a.tx, create, a.definition.bucketNameLeftIndex)
 	if err != nil {
 		return nil, err
 	}
-	a.keysIndexBucketCache = bucket
+	a.leftIndexBucketsCache = bucket
 	return bucket, nil
 }
 
-func (a *Associations[A, K, V]) keysBucket(create bool) (*bolt.Bucket, error) {
-	if a.keysBucketCache != nil {
-		return a.keysBucketCache, nil
+func (a *Associations[A, L, R]) leftBuckets(create bool) (*bolt.Bucket, error) {
+	if a.leftBucketsCache != nil {
+		return a.leftBucketsCache, nil
 	}
-	bucket, err := rootBucket(a.tx, create, a.definition.bucketNameKeys)
+	bucket, err := rootBucket(a.tx, create, a.definition.bucketNameLeft)
 	if err != nil {
 		return nil, err
 	}
-	a.keysBucketCache = bucket
+	a.leftBucketsCache = bucket
 	return bucket, nil
 }
 
-func (a *Associations[A, K, V]) valuesBucket(create bool) (*bolt.Bucket, error) {
-	if a.valuesBucketCache != nil {
-		return a.valuesBucketCache, nil
+func (a *Associations[A, L, R]) rightBuckets(create bool) (*bolt.Bucket, error) {
+	if a.rightBucketsCache != nil {
+		return a.rightBucketsCache, nil
 	}
-	bucket, err := rootBucket(a.tx, create, a.definition.bucketNameValues)
+	bucket, err := rootBucket(a.tx, create, a.definition.bucketNameRight)
 	if err != nil {
 		return nil, err
 	}
-	a.valuesBucketCache = bucket
+	a.rightBucketsCache = bucket
 	return bucket, nil
 }
 
@@ -134,48 +134,48 @@ func (a *Associations[A, K, V]) valuesBucket(create bool) (*bolt.Bucket, error) 
 // provided association key. If the returned value of exists is false, the
 // association still does not exist but it will be created if a value is added
 // to it.
-func (a *Associations[A, K, V]) Association(key A) (association *Association[K, V], exists bool, err error) {
+func (a *Associations[A, L, R]) Association(key A) (association *Association[L, R], exists bool, err error) {
 	ak, err := a.definition.associationKeyEncoding.Encode(key)
 	if err != nil {
 		return nil, false, fmt.Errorf("encode association key: %w", err)
 	}
-	keysBucket, err := a.keysBucket(false)
+	leftBucket, err := a.leftBuckets(false)
 	if err != nil {
-		return nil, false, fmt.Errorf("keys index bucket: %w", err)
+		return nil, false, fmt.Errorf("left buckets: %w", err)
 	}
-	exists = keysBucket != nil && keysBucket.Bucket(ak) != nil
+	exists = leftBucket != nil && leftBucket.Bucket(ak) != nil
 
-	return &Association[K, V]{
+	return &Association[L, R]{
 		tx: a.tx,
-		definition: &AssociationDefinition[K, V]{
-			bucketPathKeys:   [][]byte{a.definition.bucketNameKeys, ak},
-			bucketPathValues: [][]byte{a.definition.bucketNameValues, ak},
-			keyEncoding:      a.definition.keyEncoding,
-			valueEncoding:    a.definition.valueEncoding,
-			errNotFound:      a.definition.errNotFound,
-			errKeyExists:     a.definition.errKeyExists,
-			errValueExists:   a.definition.errValueExists,
-			setCallback: func(key []byte) error {
-				keysIndexBucket, err := a.keysIndexBucket(true)
+		definition: &AssociationDefinition[L, R]{
+			bucketPathLeft:  [][]byte{a.definition.bucketNameLeft, ak},
+			bucketPathRight: [][]byte{a.definition.bucketNameRight, ak},
+			leftEncoding:    a.definition.leftEncoding,
+			rightEncoding:   a.definition.rightEncoding,
+			errNotFound:     a.definition.errNotFound,
+			errLeftExists:   a.definition.errLeftExists,
+			errRightExists:  a.definition.errRightExists,
+			setCallback: func(left []byte) error {
+				leftIndexBuckets, err := a.leftIndexBuckets(true)
 				if err != nil {
-					return fmt.Errorf("keys index bucket: %w", err)
+					return fmt.Errorf("left index buckets: %w", err)
 				}
-				keyIndex := keysIndexBucket.Bucket(key)
-				if keyIndex != nil {
-					if a.definition.uniqueKeys {
-						firstKey, _ := keyIndex.Cursor().First()
+				leftIndexBucket := leftIndexBuckets.Bucket(left)
+				if leftIndexBucket != nil {
+					if a.definition.uniqueLeftValues {
+						firstKey, _ := leftIndexBucket.Cursor().First()
 						if firstKey != nil && !bytes.Equal(firstKey, ak) {
-							return a.definition.errKeyExists
+							return a.definition.errLeftExists
 						}
 					}
 				} else {
-					b, err := keysIndexBucket.CreateBucket(key)
+					b, err := leftIndexBuckets.CreateBucket(left)
 					if err != nil {
-						return fmt.Errorf("create key index bucket: %w", err)
+						return fmt.Errorf("create left index bucket: %w", err)
 					}
-					keyIndex = b
+					leftIndexBucket = b
 				}
-				return keyIndex.Put(ak, nil)
+				return leftIndexBucket.Put(ak, nil)
 			},
 		},
 	}, exists, nil
@@ -183,186 +183,186 @@ func (a *Associations[A, K, V]) Association(key A) (association *Association[K, 
 
 // HasAssociation returns true if the Association associated with the
 // association key already exists in the database.
-func (a *Associations[A, K, V]) HasAssociation(key A) (bool, error) {
+func (a *Associations[A, L, R]) HasAssociation(key A) (bool, error) {
 	ak, err := a.definition.associationKeyEncoding.Encode(key)
 	if err != nil {
 		return false, fmt.Errorf("encode association key: %w", err)
 	}
 
-	keysBucket, err := a.keysBucket(false)
+	leftBuckets, err := a.leftBuckets(false)
 	if err != nil {
-		return false, fmt.Errorf("keys bucket: %w", err)
+		return false, fmt.Errorf("left buckets: %w", err)
 	}
-	if keysBucket == nil {
+	if leftBuckets == nil {
 		return false, nil
 	}
 
-	return keysBucket.Bucket(ak) != nil, nil
+	return leftBuckets.Bucket(ak) != nil, nil
 }
 
-// HasKey returns true if the key already exists in any Association.
-func (a *Associations[A, K, V]) HasKey(key K) (bool, error) {
-	k, err := a.definition.keyEncoding.Encode(key)
+// HasLeft returns true if the left value already exists in any Association.
+func (a *Associations[A, L, R]) HasLeft(left L) (bool, error) {
+	l, err := a.definition.leftEncoding.Encode(left)
 	if err != nil {
-		return false, fmt.Errorf("encode key: %w", err)
+		return false, fmt.Errorf("encode left: %w", err)
 	}
 
-	keysIndexBucket, err := a.keysIndexBucket(false)
+	leftIndexBuckets, err := a.leftIndexBuckets(false)
 	if err != nil {
-		return false, fmt.Errorf("keys index bucket: %w", err)
+		return false, fmt.Errorf("left index buckets: %w", err)
 	}
-	if keysIndexBucket == nil {
+	if leftIndexBuckets == nil {
 		return false, nil
 	}
 
-	return keysIndexBucket.Bucket(k) != nil, nil
+	return leftIndexBuckets.Bucket(l) != nil, nil
 }
 
 // DeleteAssociation removes the association from the database. If ensure flag
-// is set to true and the value does not exist, configured
-// ErrAssociationNotFound is returned.
-func (a *Associations[A, K, V]) DeleteAssociation(key A, ensure bool) error {
+// is set to true and the key does not exist, configured ErrAssociationNotFound
+// is returned.
+func (a *Associations[A, L, R]) DeleteAssociation(key A, ensure bool) error {
 	ak, err := a.definition.associationKeyEncoding.Encode(key)
 	if err != nil {
 		return fmt.Errorf("encode association key: %w", err)
 	}
 
-	keysBucket, err := a.keysBucket(false)
+	leftBuckets, err := a.leftBuckets(false)
 	if err != nil {
-		return fmt.Errorf("keys bucket: %w", err)
+		return fmt.Errorf("left buckets: %w", err)
 	}
-	if keysBucket == nil {
+	if leftBuckets == nil {
 		if ensure {
 			return a.definition.errAssociationNotFound
 		}
 		return nil
 	}
 
-	keyBucket := keysBucket.Bucket(ak)
-	if keyBucket == nil {
+	leftBucket := leftBuckets.Bucket(ak)
+	if leftBucket == nil {
 		if ensure {
 			return a.definition.errAssociationNotFound
 		}
 		return nil
 	}
 
-	valuesBucket, err := a.valuesBucket(false)
+	rightBuckets, err := a.rightBuckets(false)
 	if err != nil {
-		return fmt.Errorf("values bucket: %w", err)
+		return fmt.Errorf("right buckets: %w", err)
 	}
-	if valuesBucket == nil {
+	if rightBuckets == nil {
 		if ensure {
 			return a.definition.errAssociationNotFound
 		}
 		return nil
 	}
 
-	keysIndexBucket, err := a.keysIndexBucket(false)
+	leftIndexBuckets, err := a.leftIndexBuckets(false)
 	if err != nil {
-		return fmt.Errorf("keys index bucket: %w", err)
+		return fmt.Errorf("left index buckets: %w", err)
 	}
-	if keysIndexBucket == nil {
-		return errors.New("keys index bucket does not exist")
+	if leftIndexBuckets == nil {
+		return errors.New("left index bucket does not exist")
 	}
 
-	if err := keyBucket.ForEach(func(k, _ []byte) error {
-		keyIndexBucket := keysIndexBucket.Bucket(k)
-		if keyIndexBucket == nil {
+	if err := leftBucket.ForEach(func(l, _ []byte) error {
+		leftIndexBucket := leftIndexBuckets.Bucket(l)
+		if leftIndexBucket == nil {
 			return nil
 		}
-		if err := keyIndexBucket.Delete(ak); err != nil {
-			return fmt.Errorf("delete key from keys index bucket: %w", err)
+		if err := leftIndexBucket.Delete(ak); err != nil {
+			return fmt.Errorf("delete association key from left index buckets: %w", err)
 		}
-		if keyIndexBucket.Stats().KeyN == 1 { // stats are updated after the transaction
-			if err := keysIndexBucket.DeleteBucket(k); err != nil {
-				return fmt.Errorf("delete association key from key index bucket: %w", err)
+		if leftIndexBucket.Stats().KeyN == 1 { // stats are updated after the transaction
+			if err := leftIndexBuckets.DeleteBucket(l); err != nil {
+				return fmt.Errorf("delete association key from left index buckets: %w", err)
 			}
 		}
 		return nil
 	}); err != nil {
-		return fmt.Errorf("delete association key in keys index buckets: %w", err)
+		return fmt.Errorf("delete association key in left index buckets: %w", err)
 	}
 
-	if err := keysBucket.DeleteBucket(ak); err != nil {
-		return fmt.Errorf("delete keys bucket: %w", err)
+	if err := leftBuckets.DeleteBucket(ak); err != nil {
+		return fmt.Errorf("delete left bucket: %w", err)
 	}
 
-	if err := valuesBucket.DeleteBucket(ak); err != nil {
-		return fmt.Errorf("delete values bucket: %w", err)
+	if err := rightBuckets.DeleteBucket(ak); err != nil {
+		return fmt.Errorf("delete right bucket: %w", err)
 	}
 
 	return nil
 }
 
-// DeleteKey removes the value from all associations that contain it. If ensure
-// flag is set to true and the value does not exist, configured ErrNotFound is
-// returned.
-func (a *Associations[A, K, V]) DeleteKey(key K, ensure bool) error {
-	k, err := a.definition.keyEncoding.Encode(key)
+// DeleteLeft removes the left value from all associations that contain it. If
+// ensure flag is set to true and the left value does not exist, configured
+// ErrNotFound is returned.
+func (a *Associations[A, L, R]) DeleteLeft(left L, ensure bool) error {
+	l, err := a.definition.leftEncoding.Encode(left)
 	if err != nil {
-		return fmt.Errorf("encode key: %w", err)
+		return fmt.Errorf("encode left: %w", err)
 	}
 
-	keysIndexBucket, err := a.keysIndexBucket(false)
+	leftIndexBuckets, err := a.leftIndexBuckets(false)
 	if err != nil {
-		return fmt.Errorf("lists bucket: %w", err)
+		return fmt.Errorf("left index buckets: %w", err)
 	}
 
-	if keysIndexBucket == nil {
+	if leftIndexBuckets == nil {
 		if ensure {
 			return a.definition.errNotFound
 		}
 		return nil
 	}
 
-	keyIndexBucket := keysIndexBucket.Bucket(k)
-	if keyIndexBucket == nil {
+	leftIndexBucket := leftIndexBuckets.Bucket(l)
+	if leftIndexBucket == nil {
 		if ensure {
 			return a.definition.errNotFound
 		}
 		return nil
 	}
 
-	keysBucket, err := a.keysBucket(false)
+	leftBuckets, err := a.leftBuckets(false)
 	if err != nil {
-		return fmt.Errorf("values bucket: %w", err)
+		return fmt.Errorf("right buckets: %w", err)
 	}
-	if keysBucket == nil {
+	if leftBuckets == nil {
 		if ensure {
 			return a.definition.errNotFound
 		}
 		return nil
 	}
 
-	valuesBucket, err := a.valuesBucket(false)
+	rightBuckets, err := a.rightBuckets(false)
 	if err != nil {
-		return fmt.Errorf("values bucket: %w", err)
+		return fmt.Errorf("right buckets: %w", err)
 	}
-	if valuesBucket == nil {
+	if rightBuckets == nil {
 		if ensure {
 			return a.definition.errNotFound
 		}
 		return nil
 	}
 
-	if keysBucket != nil && valuesBucket != nil {
-		association := (&AssociationDefinition[K, V]{
-			keyEncoding:   a.definition.keyEncoding,
-			valueEncoding: a.definition.valueEncoding,
+	if leftBuckets != nil && rightBuckets != nil {
+		association := (&AssociationDefinition[L, R]{
+			leftEncoding:  a.definition.leftEncoding,
+			rightEncoding: a.definition.rightEncoding,
 			errNotFound:   a.definition.errNotFound,
 		}).Association(nil)
 
-		if err := keyIndexBucket.ForEach(func(ak, _ []byte) error {
-			association.keysBucketCache = keysBucket.Bucket(ak)
-			association.valuesBucketCache = valuesBucket.Bucket(ak)
-			return association.DeleteByKey(key, false)
+		if err := leftIndexBucket.ForEach(func(ak, _ []byte) error {
+			association.leftBucketCache = leftBuckets.Bucket(ak)
+			association.rightBucketCache = rightBuckets.Bucket(ak)
+			return association.DeleteByLeft(left, false)
 		}); err != nil {
-			return fmt.Errorf("delete key in keys bucket: %w", err)
+			return fmt.Errorf("delete relation in left and right buckets: %w", err)
 		}
 	}
 
-	if err := keysIndexBucket.DeleteBucket(k); err != nil {
-		return fmt.Errorf("delete key bucket: %w", err)
+	if err := leftIndexBuckets.DeleteBucket(l); err != nil {
+		return fmt.Errorf("delete left value bucket from left index buckets: %w", err)
 	}
 
 	return nil
@@ -370,15 +370,15 @@ func (a *Associations[A, K, V]) DeleteKey(key K, ensure bool) error {
 
 // IterateAssociations iterates over Association keys in the lexicographical
 // order of keys.
-func (a *Associations[A, K, V]) IterateAssociations(start *A, reverse bool, f func(A) (bool, error)) (next *A, err error) {
-	keysBucket, err := a.keysBucket(false)
+func (a *Associations[A, L, R]) IterateAssociations(start *A, reverse bool, f func(A) (bool, error)) (next *A, err error) {
+	leftbuckets, err := a.leftBuckets(false)
 	if err != nil {
-		return nil, fmt.Errorf("keys bucket: %w", err)
+		return nil, fmt.Errorf("left buckets: %w", err)
 	}
-	if keysBucket == nil {
+	if leftbuckets == nil {
 		return nil, nil
 	}
-	return iterateKeys(keysBucket, a.definition.associationKeyEncoding, start, reverse, func(ak, _ []byte) (bool, error) {
+	return iterateKeys(leftbuckets, a.definition.associationKeyEncoding, start, reverse, func(ak, _ []byte) (bool, error) {
 		key, err := a.definition.associationKeyEncoding.Decode(ak)
 		if err != nil {
 			return false, fmt.Errorf("decode association key: %w", err)
@@ -390,38 +390,38 @@ func (a *Associations[A, K, V]) IterateAssociations(start *A, reverse bool, f fu
 
 // PageOfAssociations returns at most a limit of Association keys at the
 // provided page number.
-func (a *Associations[A, K, V]) PageOfAssociations(number, limit int, reverse bool) (s []A, totalElements, pages int, err error) {
-	keysBucket, err := a.keysBucket(false)
+func (a *Associations[A, L, R]) PageOfAssociations(number, limit int, reverse bool) (s []A, totalElements, pages int, err error) {
+	leftBuckets, err := a.leftBuckets(false)
 	if err != nil {
-		return nil, 0, 0, fmt.Errorf("keys bucket: %w", err)
+		return nil, 0, 0, fmt.Errorf("left buckets: %w", err)
 	}
-	if keysBucket == nil {
+	if leftBuckets == nil {
 		return nil, 0, 0, nil
 	}
-	return page(keysBucket, true, number, limit, reverse, func(ak, _ []byte) (A, error) {
+	return page(leftBuckets, true, number, limit, reverse, func(ak, _ []byte) (A, error) {
 		return a.definition.associationKeyEncoding.Decode(ak)
 	})
 }
 
-// IterateAssociationsWithKey iterates over Association keys that contain the
-// provided value in the lexicographical order of keys.
-func (a *Associations[A, K, V]) IterateAssociationsWithKey(key K, start *A, reverse bool, f func(A) (bool, error)) (next *A, err error) {
-	k, err := a.definition.keyEncoding.Encode(key)
+// IterateAssociationsWithLeftValue iterates over Association keys that contain
+// the provided left value in the lexicographical order of keys.
+func (a *Associations[A, L, R]) IterateAssociationsWithLeftValue(left L, start *A, reverse bool, f func(A) (bool, error)) (next *A, err error) {
+	l, err := a.definition.leftEncoding.Encode(left)
 	if err != nil {
-		return nil, fmt.Errorf("encode key: %w", err)
+		return nil, fmt.Errorf("encode left: %w", err)
 	}
-	keysIndexBucket, err := a.keysIndexBucket(false)
+	leftIndexBuckets, err := a.leftIndexBuckets(false)
 	if err != nil {
-		return nil, fmt.Errorf("keys index bucket: %w", err)
+		return nil, fmt.Errorf("left index buckets: %w", err)
 	}
-	if keysIndexBucket == nil {
+	if leftIndexBuckets == nil {
 		return nil, nil
 	}
-	keyIndexBucket := keysIndexBucket.Bucket(k)
-	if keyIndexBucket == nil {
+	leftIndexBucket := leftIndexBuckets.Bucket(l)
+	if leftIndexBucket == nil {
 		return nil, nil
 	}
-	return iterateKeys(keyIndexBucket, a.definition.associationKeyEncoding, start, reverse, func(ak, _ []byte) (bool, error) {
+	return iterateKeys(leftIndexBucket, a.definition.associationKeyEncoding, start, reverse, func(ak, _ []byte) (bool, error) {
 		key, err := a.definition.associationKeyEncoding.Decode(ak)
 		if err != nil {
 			return false, fmt.Errorf("decode association key: %w", err)
@@ -431,58 +431,60 @@ func (a *Associations[A, K, V]) IterateAssociationsWithKey(key K, start *A, reve
 	})
 }
 
-// PageOfAssociationsWithKey returns at most a limit of Association keys that
-// contain the provided key at the provided page number.
-func (a *Associations[A, K, V]) PageOfAssociationsWithKey(key K, number, limit int, reverse bool) (s []A, totalElements, pages int, err error) {
-	k, err := a.definition.keyEncoding.Encode(key)
+// PageOfAssociationsWithLeftValue returns at most a limit of Association keys
+// that contain the provided left value at the provided page number.
+func (a *Associations[A, L, R]) PageOfAssociationsWithLeftValue(left L, number, limit int, reverse bool) (s []A, totalElements, pages int, err error) {
+	l, err := a.definition.leftEncoding.Encode(left)
 	if err != nil {
-		return nil, 0, 0, fmt.Errorf("encode key: %w", err)
+		return nil, 0, 0, fmt.Errorf("encode left: %w", err)
 	}
-	keysIndexBucket, err := a.keysIndexBucket(false)
+	leftIndexBuckets, err := a.leftIndexBuckets(false)
 	if err != nil {
-		return nil, 0, 0, fmt.Errorf("keys index bucket: %w", err)
+		return nil, 0, 0, fmt.Errorf("left index buckets: %w", err)
 	}
-	if keysIndexBucket == nil {
+	if leftIndexBuckets == nil {
 		return nil, 0, 0, nil
 	}
-	keyIndexBucket := keysIndexBucket.Bucket(k)
-	if keyIndexBucket == nil {
+	leftIndexBucket := leftIndexBuckets.Bucket(l)
+	if leftIndexBucket == nil {
 		return nil, 0, 0, nil
 	}
-	return page(keyIndexBucket, false, number, limit, reverse, func(k, _ []byte) (A, error) {
+	return page(leftIndexBucket, false, number, limit, reverse, func(k, _ []byte) (A, error) {
 		return a.definition.associationKeyEncoding.Decode(k)
 	})
 }
 
-// IterateKeys iterates over all keys in the lexicographical order of values.
-func (a *Associations[A, K, V]) IterateKeys(start *K, reverse bool, f func(K) (bool, error)) (next *K, err error) {
-	keysIndexBucket, err := a.keysIndexBucket(false)
+// IterateLeftValues iterates over all left values in the lexicographical order
+// of left values.
+func (a *Associations[A, L, R]) IterateLeftValues(start *L, reverse bool, f func(L) (bool, error)) (next *L, err error) {
+	leftIndexBuckets, err := a.leftIndexBuckets(false)
 	if err != nil {
-		return nil, fmt.Errorf("keys index bucket: %w", err)
+		return nil, fmt.Errorf("left index buckets: %w", err)
 	}
-	if keysIndexBucket == nil {
+	if leftIndexBuckets == nil {
 		return nil, nil
 	}
-	return iterateKeys(keysIndexBucket, a.definition.keyEncoding, start, reverse, func(v, _ []byte) (bool, error) {
-		key, err := a.definition.keyEncoding.Decode(v)
+	return iterateKeys(leftIndexBuckets, a.definition.leftEncoding, start, reverse, func(l, _ []byte) (bool, error) {
+		left, err := a.definition.leftEncoding.Decode(l)
 		if err != nil {
-			return false, fmt.Errorf("decode key: %w", err)
+			return false, fmt.Errorf("decode left: %w", err)
 		}
 
-		return f(key)
+		return f(left)
 	})
 }
 
-// PageOfKeys returns at most a limit of keys at the provided page number.
-func (a *Associations[A, K, V]) PageOfKeys(number, limit int, reverse bool) (s []K, totalElements, pages int, err error) {
-	keysIndexBucket, err := a.keysIndexBucket(false)
+// PageOfLeftValues returns at most a limit of left values at the provided page
+// number.
+func (a *Associations[A, L, R]) PageOfLeftValues(number, limit int, reverse bool) (s []L, totalElements, pages int, err error) {
+	leftIndexBuckets, err := a.leftIndexBuckets(false)
 	if err != nil {
-		return nil, 0, 0, fmt.Errorf("keys index bucket: %w", err)
+		return nil, 0, 0, fmt.Errorf("left index buckets: %w", err)
 	}
-	if keysIndexBucket == nil {
+	if leftIndexBuckets == nil {
 		return nil, 0, 0, nil
 	}
-	return page(keysIndexBucket, true, number, limit, reverse, func(v, _ []byte) (K, error) {
-		return a.definition.keyEncoding.Decode(v)
+	return page(leftIndexBuckets, true, number, limit, reverse, func(l, _ []byte) (L, error) {
+		return a.definition.leftEncoding.Decode(l)
 	})
 }
