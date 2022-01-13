@@ -33,11 +33,17 @@ func deepBucket(tx *bolt.Tx, create bool, path ...[]byte) (*bolt.Bucket, error) 
 	if err != nil {
 		return nil, fmt.Errorf("create root bucket: %w", err)
 	}
+	if !create && bucket == nil {
+		return nil, nil
+	}
 	for i := 1; i < length; i++ {
 		var err error
 		bucket, err = nestedBucket(bucket, create, path[i])
 		if err != nil {
 			return nil, fmt.Errorf("create %v nested bucket: %s", i, err)
+		}
+		if !create && bucket == nil {
+			return nil, nil
 		}
 	}
 	return bucket, nil
