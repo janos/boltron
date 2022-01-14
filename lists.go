@@ -345,7 +345,9 @@ func (l *Lists[K, V, O]) DeleteValue(value V, ensure bool) error {
 	return nil
 }
 
-// IterateLists iterates over List keys in the lexicographical order of keys.
+// IterateLists iterates over List keys in the lexicographical order of keys. If
+// the callback function f returns false, the iteration stops and the next can
+// be used to continue the iteration.
 func (l *Lists[K, V, O]) IterateLists(start *K, reverse bool, f func(K) (bool, error)) (next *K, err error) {
 	listsBucket, err := l.listsBucket(false)
 	if err != nil {
@@ -379,7 +381,9 @@ func (l *Lists[K, V, O]) PageOfLists(number, limit int, reverse bool) (s []K, to
 }
 
 // IterateListsWithValue iterates over List keys that contain the provided value
-// in the lexicographical order of keys.
+// in the lexicographical order of keys. If the callback function f returns
+// false, the iteration stops and the next can be used to continue the
+// iteration.
 func (l *Lists[K, V, O]) IterateListsWithValue(value V, start *K, reverse bool, f func(K) (bool, error)) (next *K, err error) {
 	v, err := l.definition.valueEncoding.Encode(value)
 	if err != nil {
@@ -430,7 +434,8 @@ func (l *Lists[K, V, O]) PageOfListsWithValue(value V, number, limit int, revers
 }
 
 // IterateValues iterates over all values in the lexicographical order of
-// values.
+// values. If the callback function f returns false, the iteration stops and the
+// next can be used to continue the iteration.
 func (l *Lists[K, V, O]) IterateValues(start *V, reverse bool, f func(V) (bool, error)) (next *V, err error) {
 	valuesBucket, err := l.valuesBucket(false)
 	if err != nil {

@@ -376,7 +376,8 @@ func (a *Associations[A, L, R]) DeleteLeft(left L, ensure bool) error {
 }
 
 // IterateAssociations iterates over Association keys in the lexicographical
-// order of keys.
+// order of keys. If the callback function f returns false, the iteration stops
+// and the next can be used to continue the iteration.
 func (a *Associations[A, L, R]) IterateAssociations(start *A, reverse bool, f func(A) (bool, error)) (next *A, err error) {
 	leftbuckets, err := a.leftBuckets(false)
 	if err != nil {
@@ -411,7 +412,9 @@ func (a *Associations[A, L, R]) PageOfAssociations(number, limit int, reverse bo
 }
 
 // IterateAssociationsWithLeftValue iterates over Association keys that contain
-// the provided left value in the lexicographical order of keys.
+// the provided left value in the lexicographical order of keys. If the callback
+// function f returns false, the iteration stops and the next can be used to
+// continue the iteration.
 func (a *Associations[A, L, R]) IterateAssociationsWithLeftValue(left L, start *A, reverse bool, f func(A) (bool, error)) (next *A, err error) {
 	l, err := a.definition.leftEncoding.Encode(left)
 	if err != nil {
@@ -462,7 +465,8 @@ func (a *Associations[A, L, R]) PageOfAssociationsWithLeftValue(left L, number, 
 }
 
 // IterateLeftValues iterates over all left values in the lexicographical order
-// of left values.
+// of left values. If the callback function f returns false, the iteration stops
+// and the next can be used to continue the iteration.
 func (a *Associations[A, L, R]) IterateLeftValues(start *L, reverse bool, f func(L) (bool, error)) (next *L, err error) {
 	leftIndexBuckets, err := a.leftIndexBuckets(false)
 	if err != nil {

@@ -208,7 +208,9 @@ func (c *Collection[K, V]) Iterate(start *K, reverse bool, f func(K, V) (bool, e
 	})
 }
 
-// IterateKeys iterates over keys in the lexicographical order of keys.
+// IterateKeys iterates over keys in the lexicographical order of keys. If the
+// callback function f returns false, the iteration stops and the next can be
+// used to continue the iteration.
 func (c *Collection[K, V]) IterateKeys(start *K, reverse bool, f func(K) (bool, error)) (next *K, err error) {
 	bucket, err := c.bucket(false)
 	if err != nil {
@@ -227,7 +229,9 @@ func (c *Collection[K, V]) IterateKeys(start *K, reverse bool, f func(K) (bool, 
 	})
 }
 
-// IterateValues iterates over values in the lexicographical order of keys.
+// IterateValues iterates over values in the lexicographical order of keys. If
+// the callback function f returns false, the iteration stops and the next can
+// be used to continue the iteration.
 func (c *Collection[K, V]) IterateValues(start *K, reverse bool, f func(V) (bool, error)) (next *K, err error) {
 	bucket, err := c.bucket(false)
 	if err != nil {
@@ -246,8 +250,8 @@ func (c *Collection[K, V]) IterateValues(start *K, reverse bool, f func(V) (bool
 	})
 }
 
-// CollectionElement is the type returned by pagination methods as slice elements that
-// cointain both key and value.
+// CollectionElement is the type returned by pagination methods as slice
+// elements that cointain both key and value.
 type CollectionElement[K, V any] struct {
 	Key   K
 	Value V

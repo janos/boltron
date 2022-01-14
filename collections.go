@@ -320,7 +320,8 @@ func (c *Collections[C, K, V]) DeleteKey(key K, ensure bool) error {
 }
 
 // IterateCollections iterates over collection keys in the lexicographical order
-// of keys.
+// of keys. If the callback function f returns false, the iteration stops and
+// the next can be used to continue the iteration.
 func (c *Collections[C, K, V]) IterateCollections(start *C, reverse bool, f func(C) (bool, error)) (next *C, err error) {
 	collectionsBucket, err := c.collectionsBucket(false)
 	if err != nil {
@@ -355,7 +356,9 @@ func (c *Collections[C, K, V]) PageOfCollections(number, limit int, reverse bool
 }
 
 // IterateCollectionsWithKey iterates over collection keys that contain the
-// provided key in the lexicographical order of collection keys.
+// provided key in the lexicographical order of collection keys. If the callback
+// function f returns false, the iteration stops and the next can be used to
+// continue the iteration.
 func (c *Collections[C, K, V]) IterateCollectionsWithKey(key K, start *C, reverse bool, f func(C) (bool, error)) (next *C, err error) {
 	k, err := c.definition.keyEncoding.Encode(key)
 	if err != nil {
@@ -405,7 +408,9 @@ func (c *Collections[C, K, V]) PageOfCollectionsWithKey(key K, number, limit int
 	})
 }
 
-// IterateKeys iterates over all keys in the lexicographical order of keys.
+// IterateKeys iterates over all keys in the lexicographical order of keys. If
+// the callback function f returns false, the iteration stops and the next can
+// be used to continue the iteration.
 func (c *Collections[C, K, V]) IterateKeys(start *K, reverse bool, f func(K) (bool, error)) (next *K, err error) {
 	keysBucket, err := c.keysBucket(false)
 	if err != nil {

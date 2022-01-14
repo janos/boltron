@@ -368,7 +368,8 @@ func (a *Association[L, R]) DeleteByRight(right R, ensure bool) error {
 }
 
 // Iterate iterates over associations in the lexicographical order of left
-// values.
+// values. If the callback function f returns false, the iteration stops and the
+// next can be used to continue the iteration.
 func (a *Association[L, R]) Iterate(start *L, reverse bool, f func(L, R) (bool, error)) (next *L, err error) {
 	leftBucket, err := a.leftBucket(false)
 	if err != nil {
@@ -393,7 +394,8 @@ func (a *Association[L, R]) Iterate(start *L, reverse bool, f func(L, R) (bool, 
 }
 
 // IterateLeftValues iterates over left values in the lexicographical order of
-// left values.
+// left values. If the callback function f returns false, the iteration stops
+// and the next can be used to continue the iteration.
 func (a *Association[L, R]) IterateLeftValues(start *L, reverse bool, f func(L) (bool, error)) (next *L, err error) {
 	leftBucket, err := a.leftBucket(false)
 	if err != nil {
@@ -413,7 +415,8 @@ func (a *Association[L, R]) IterateLeftValues(start *L, reverse bool, f func(L) 
 }
 
 // IterateRightValues iterates over right values in the lexicographical order of
-// right values.
+// right values. If the callback function f returns false, the iteration stops
+// and the next can be used to continue the iteration.
 func (a *Association[L, R]) IterateRightValues(start *R, reverse bool, f func(R) (bool, error)) (next *R, err error) {
 	rightBucket, err := a.rightBucket(false)
 	if err != nil {

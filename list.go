@@ -236,6 +236,8 @@ func (l *List[V, O]) Remove(value V, ensure bool) error {
 }
 
 // Iterate iterates over keys and values in the lexicographical order of keys.
+// If the callback function f returns false, the iteration stops and the next
+// can be used to continue the iteration.
 func (l *List[V, O]) Iterate(start *ListElement[V, O], reverse bool, f func(V, O) (bool, error)) (next *ListElement[V, O], err error) {
 	listBucket, err := l.listBucket(false)
 	if err != nil {
@@ -260,6 +262,8 @@ func (l *List[V, O]) Iterate(start *ListElement[V, O], reverse bool, f func(V, O
 }
 
 // IterateValues iterates over values in the lexicographical order of order by.
+// If the callback function f returns false, the iteration stops and the next
+// can be used to continue the iteration.
 func (l *List[V, O]) IterateValues(start *ListElement[V, O], reverse bool, f func(V) (bool, error)) (next *ListElement[V, O], err error) {
 	listBucket, err := l.listBucket(false)
 	if err != nil {
