@@ -384,7 +384,7 @@ func (l *Lists[K, V, O]) PageOfLists(number, limit int, reverse bool) (s []K, to
 // in the lexicographical order of keys. If the callback function f returns
 // false, the iteration stops and the next can be used to continue the
 // iteration.
-func (l *Lists[K, V, O]) IterateListsWithValue(value V, start *K, reverse bool, f func(K) (bool, error)) (next *K, err error) {
+func (l *Lists[K, V, O]) IterateListsWithValue(value V, start *K, reverse bool, f func(K, O) (bool, error)) (next *K, err error) {
 	v, err := l.definition.valueEncoding.Encode(value)
 	if err != nil {
 		return nil, fmt.Errorf("encode value: %w", err)
@@ -400,19 +400,32 @@ func (l *Lists[K, V, O]) IterateListsWithValue(value V, start *K, reverse bool, 
 	if valueBucket == nil {
 		return nil, nil
 	}
-	return iterateKeys(valueBucket, l.definition.keyEncoding, start, reverse, func(k, _ []byte) (bool, error) {
+	return iterateKeys(valueBucket, l.definition.keyEncoding, start, reverse, func(k, o []byte) (bool, error) {
 		key, err := l.definition.keyEncoding.Decode(k)
 		if err != nil {
 			return false, fmt.Errorf("decode value: %w", err)
 		}
 
-		return f(key)
+		orderBy, err := l.definition.orderByEncoding.Decode(o)
+		if err != nil {
+			return false, fmt.Errorf("decode value: %w", err)
+		}
+
+		return f(key, orderBy)
 	})
 }
 
-// PageOfListsWithValue returns at most a limit of List keys that contain the
-// provided value at the provided page number.
-func (l *Lists[K, V, O]) PageOfListsWithValue(value V, number, limit int, reverse bool) (s []K, totalElements, pages int, err error) {
+// ListsElement is the type returned by Lists pagination methods as slice
+// elements that cointain both list key and the order by value of the value in
+// that list.
+type ListsElement[K, O any] struct {
+	Key     K
+	OrderBy O
+}
+
+// PageOfListsWithValue returns at most a limit of List keys and associate order
+// by values that contain the provided value at the provided page number.
+func (l *Lists[K, V, O]) PageOfListsWithValue(value V, number, limit int, reverse bool) (s []ListsElement[K, O], totalElements, pages int, err error) {
 	v, err := l.definition.valueEncoding.Encode(value)
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("encode value: %w", err)
@@ -428,8 +441,21 @@ func (l *Lists[K, V, O]) PageOfListsWithValue(value V, number, limit int, revers
 	if valueBucket == nil {
 		return nil, 0, 0, nil
 	}
-	return page(valueBucket, false, number, limit, reverse, func(k, _ []byte) (K, error) {
-		return l.definition.keyEncoding.Decode(k)
+	return page(valueBucket, false, number, limit, reverse, func(k, o []byte) (e ListsElement[K, O], err error) {
+		key, err := l.definition.keyEncoding.Decode(k)
+		if err != nil {
+			return e, fmt.Errorf("decode value: %w", err)
+		}
+
+		orderBy, err := l.definition.orderByEncoding.Decode(o)
+		if err != nil {
+			return e, fmt.Errorf("decode value: %w", err)
+		}
+
+		return ListsElement[K, O]{
+			Key:     key,
+			OrderBy: orderBy,
+		}, nil
 	})
 }
 

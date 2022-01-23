@@ -68,6 +68,11 @@ var (
 		"resenje.org/schulze",
 		"resenje.org/web",
 	}
+	testProjectDependenciesListsWithValue125Times = []time.Time{
+		time.Unix(1640732500, 0).UTC(),
+		time.Unix(1640732205, 0).UTC(),
+		time.Unix(1640732381, 0).UTC(),
+	}
 )
 
 func TestLists(t *testing.T) {
@@ -355,8 +360,9 @@ func TestLists_iterateListsWithValue(t *testing.T) {
 			projectDependencies := projectDependenciesDefinition.Lists(tx)
 
 			var i int
-			next, err := projectDependencies.IterateListsWithValue(125, nil, false, func(v string) (bool, error) {
+			next, err := projectDependencies.IterateListsWithValue(125, nil, false, func(v string, o time.Time) (bool, error) {
 				assert(t, fmt.Sprintf("iterate list #%v", i), v, testProjectDependenciesListsWithValue125[i])
+				assert(t, fmt.Sprintf("iterate list #%v", i), o, testProjectDependenciesListsWithValue125Times[i])
 				i++
 				return true, nil
 			})
@@ -371,8 +377,9 @@ func TestLists_iterateListsWithValue(t *testing.T) {
 			projectDependencies := projectDependenciesDefinition.Lists(tx)
 
 			var i int
-			next, err := projectDependencies.IterateListsWithValue(125, nil, false, func(v string) (bool, error) {
+			next, err := projectDependencies.IterateListsWithValue(125, nil, false, func(v string, o time.Time) (bool, error) {
 				assert(t, fmt.Sprintf("iterate list #%v", i), v, testProjectDependenciesListsWithValue125[i])
+				assert(t, fmt.Sprintf("iterate list #%v", i), o, testProjectDependenciesListsWithValue125Times[i])
 				i++
 				if i == 2 {
 					return false, nil
@@ -382,8 +389,9 @@ func TestLists_iterateListsWithValue(t *testing.T) {
 			assertErrorFail(t, "", err, nil)
 			assert(t, "", *next, "resenje.org/web")
 
-			next, err = projectDependencies.IterateListsWithValue(125, next, false, func(v string) (bool, error) {
+			next, err = projectDependencies.IterateListsWithValue(125, next, false, func(v string, o time.Time) (bool, error) {
 				assert(t, fmt.Sprintf("iterate list #%v", i), v, testProjectDependenciesListsWithValue125[i])
+				assert(t, fmt.Sprintf("iterate list #%v", i), o, testProjectDependenciesListsWithValue125Times[i])
 				i++
 				return true, nil
 			})
@@ -398,8 +406,9 @@ func TestLists_iterateListsWithValue(t *testing.T) {
 			projectDependencies := projectDependenciesDefinition.Lists(tx)
 
 			var i int
-			next, err := projectDependencies.IterateListsWithValue(125, nil, true, func(v string) (bool, error) {
+			next, err := projectDependencies.IterateListsWithValue(125, nil, true, func(v string, o time.Time) (bool, error) {
 				assert(t, fmt.Sprintf("iterate list #%v", i), v, testProjectDependenciesListsWithValue125[len(testProjectDependenciesListsWithValue125)-1-i])
+				assert(t, fmt.Sprintf("iterate list #%v", i), o, testProjectDependenciesListsWithValue125Times[len(testProjectDependenciesListsWithValue125)-1-i])
 				i++
 				return true, nil
 			})
@@ -414,8 +423,9 @@ func TestLists_iterateListsWithValue(t *testing.T) {
 			projectDependencies := projectDependenciesDefinition.Lists(tx)
 
 			var i int
-			next, err := projectDependencies.IterateListsWithValue(125, nil, true, func(v string) (bool, error) {
+			next, err := projectDependencies.IterateListsWithValue(125, nil, true, func(v string, o time.Time) (bool, error) {
 				assert(t, fmt.Sprintf("iterate list #%v", i), v, testProjectDependenciesListsWithValue125[len(testProjectDependenciesListsWithValue125)-1-i])
+				assert(t, fmt.Sprintf("iterate list #%v", i), o, testProjectDependenciesListsWithValue125Times[len(testProjectDependenciesListsWithValue125)-1-i])
 				i++
 				if i == 2 {
 					return false, nil
@@ -425,8 +435,9 @@ func TestLists_iterateListsWithValue(t *testing.T) {
 			assertErrorFail(t, "", err, nil)
 			assert(t, "", *next, "resenje.org/pool")
 
-			next, err = projectDependencies.IterateListsWithValue(125, next, true, func(v string) (bool, error) {
+			next, err = projectDependencies.IterateListsWithValue(125, next, true, func(v string, o time.Time) (bool, error) {
 				assert(t, fmt.Sprintf("iterate list #%v", i), v, testProjectDependenciesListsWithValue125[len(testProjectDependenciesListsWithValue125)-1-i])
+				assert(t, fmt.Sprintf("iterate list #%v", i), o, testProjectDependenciesListsWithValue125Times[len(testProjectDependenciesListsWithValue125)-1-i])
 				i++
 				return true, nil
 			})
@@ -443,7 +454,7 @@ func TestLists_iterateListsWithValue(t *testing.T) {
 			projectDependencies := projectDependenciesDefinition.Lists(tx)
 
 			var count int
-			next, err := projectDependencies.IterateListsWithValue(125, nil, false, func(_ string) (bool, error) {
+			next, err := projectDependencies.IterateListsWithValue(125, nil, false, func(_ string, _ time.Time) (bool, error) {
 				count++
 				return true, nil
 			})
@@ -467,7 +478,7 @@ func TestLists_iterateListsWithValue(t *testing.T) {
 			projectDependencies := projectDependenciesDefinition.Lists(tx)
 
 			var count int
-			next, err := projectDependencies.IterateListsWithValue(125, nil, false, func(_ string) (bool, error) {
+			next, err := projectDependencies.IterateListsWithValue(125, nil, false, func(_ string, _ time.Time) (bool, error) {
 				count++
 				return true, nil
 			})
@@ -1033,10 +1044,13 @@ func projectDependenciesLists(is ...int) []string {
 	return s
 }
 
-func projectDependenciesListsWithValue125(is ...int) []string {
-	s := make([]string, 0, len(is))
+func projectDependenciesListsWithValue125(is ...int) []boltron.ListsElement[string, time.Time] {
+	s := make([]boltron.ListsElement[string, time.Time], 0, len(is))
 	for _, i := range is {
-		s = append(s, testProjectDependenciesListsWithValue125[i])
+		s = append(s, boltron.ListsElement[string, time.Time]{
+			Key: testProjectDependenciesListsWithValue125[i],
+			OrderBy: testProjectDependenciesListsWithValue125Times[i],
+		})
 	}
 	return s
 }
