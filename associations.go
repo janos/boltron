@@ -183,6 +183,28 @@ func (a *Associations[A, L, R]) Association(key A) (association *Association[L, 
 				}
 				return leftIndexBucket.Put(ak, nil)
 			},
+			deleteCallback: func(left []byte) error {
+				leftIndexBuckets, err := a.leftIndexBuckets(false)
+				if err != nil {
+					return fmt.Errorf("left index buckets: %w", err)
+				}
+				if leftIndexBuckets == nil {
+					return fmt.Errorf("missing associations left index buckets: %w", a.definition.errLeftNotFound)
+				}
+				leftIndexBucket := leftIndexBuckets.Bucket(left)
+				if leftIndexBucket == nil {
+					return fmt.Errorf("missing value in associations left index buckets: %w", a.definition.errLeftNotFound)
+				}
+				if err := leftIndexBucket.Delete(ak); err != nil {
+					return fmt.Errorf("delete value from lists values bucket: %w", err)
+				}
+				if leftIndexBuckets.Stats().KeyN == 1 { // stats are updated after the transaction
+					if err := leftIndexBuckets.DeleteBucket(left); err != nil {
+						return fmt.Errorf("delete empty left bucket: %w", err)
+					}
+				}
+				return nil
+			},
 		},
 	}, exists, nil
 }
@@ -203,7 +225,12 @@ func (a *Associations[A, L, R]) HasAssociation(key A) (bool, error) {
 		return false, nil
 	}
 
-	return leftBuckets.Bucket(ak) != nil, nil
+	if leftBuckets.Bucket(ak) == nil {
+		return false, nil
+	}
+
+	f, _ := leftBuckets.Bucket(ak).Cursor().First()
+	return f != nil, nil
 }
 
 // HasLeft returns true if the left value already exists in any Association.
@@ -221,7 +248,12 @@ func (a *Associations[A, L, R]) HasLeft(left L) (bool, error) {
 		return false, nil
 	}
 
-	return leftIndexBuckets.Bucket(l) != nil, nil
+	if leftIndexBuckets.Bucket(l) == nil {
+		return false, nil
+	}
+
+	f, _ := leftIndexBuckets.Bucket(l).Cursor().First()
+	return f != nil, nil
 }
 
 // DeleteAssociation removes the association from the database. If ensure flag

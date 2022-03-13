@@ -40,6 +40,7 @@ type AssociationDefinition[L, R any] struct {
 	errLeftExists    error
 	errRightExists   error
 	setCallback      func(left []byte) error
+	deleteCallback   func(left []byte) error
 }
 
 // AssociationOptions provides additional configuration for an Association.
@@ -312,6 +313,12 @@ func (a *Association[L, R]) DeleteByLeft(left L, ensure bool) error {
 		return fmt.Errorf("delete right: %w", err)
 	}
 
+	if a.definition.deleteCallback != nil {
+		if err := a.definition.deleteCallback(l); err != nil {
+			return fmt.Errorf("delete callback: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -362,6 +369,12 @@ func (a *Association[L, R]) DeleteByRight(right R, ensure bool) error {
 
 	if err := rightBucket.Delete(r); err != nil {
 		return fmt.Errorf("delete right: %w", err)
+	}
+
+	if a.definition.deleteCallback != nil {
+		if err := a.definition.deleteCallback(l); err != nil {
+			return fmt.Errorf("delete callback: %w", err)
+		}
 	}
 
 	return nil

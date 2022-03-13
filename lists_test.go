@@ -120,30 +120,32 @@ func TestLists(t *testing.T) {
 		assertErrorFail(t, "", err, nil)
 	})
 
-	deletedValueFromListSchulze := uint64(125)
-
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		deletedValueFromList := uint64(125)
+
 		projectDependencies := projectDependenciesDefinition.Lists(tx)
 
 		list, exists, err := projectDependencies.List("resenje.org/schulze")
 		assertErrorFail(t, "", err, nil)
 		assert(t, "", exists, true)
 
-		err = list.Remove(deletedValueFromListSchulze, true)
+		err = list.Remove(deletedValueFromList, true)
 		assertErrorFail(t, "", err, nil)
 
-		err = list.Remove(deletedValueFromListSchulze, true)
+		err = list.Remove(deletedValueFromList, true)
 		assertErrorFail(t, "", err, boltron.ErrNotFound)
 
-		has, err := projectDependencies.HasValue(deletedValueFromListSchulze)
+		has, err := projectDependencies.HasValue(deletedValueFromList)
 		assertErrorFail(t, "", err, nil)
 		assert(t, "", has, true)
 
 		var listsWithDeletedValue []string
-		projectDependencies.IterateListsWithValue(deletedValueFromListSchulze, nil, false, func(l string, _ time.Time) (bool, error) {
+		next, err := projectDependencies.IterateListsWithValue(deletedValueFromList, nil, false, func(l string, _ time.Time) (bool, error) {
 			listsWithDeletedValue = append(listsWithDeletedValue, l)
 			return true, nil
 		})
+		assertErrorFail(t, "", err, nil)
+		assert(t, "", next, nil)
 
 		assert(t, "", listsWithDeletedValue, []string{"resenje.org/pool", "resenje.org/web"})
 	})
@@ -168,10 +170,12 @@ func TestLists(t *testing.T) {
 		assert(t, "", has, false)
 
 		var listsWithDeletedValue []string
-		projectDependencies.IterateListsWithValue(deletedValueFromListBoltron, nil, false, func(l string, _ time.Time) (bool, error) {
+		next, err := projectDependencies.IterateListsWithValue(deletedValueFromListBoltron, nil, false, func(l string, _ time.Time) (bool, error) {
 			listsWithDeletedValue = append(listsWithDeletedValue, l)
 			return true, nil
 		})
+		assertErrorFail(t, "", err, nil)
+		assert(t, "", next, nil)
 
 		assert(t, "", listsWithDeletedValue, nil)
 	})

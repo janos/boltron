@@ -158,6 +158,28 @@ func (c *Collections[C, K, V]) Collection(key C) (collection *Collection[K, V], 
 				}
 				return keyBucket.Put(k, nil)
 			},
+			deleteCallback: func(key []byte) error {
+				keysBucket, err := c.keysBucket(false)
+				if err != nil {
+					return fmt.Errorf("keys bucket: %w", err)
+				}
+				if keysBucket == nil {
+					return fmt.Errorf("missing collections keys bucket: %w", c.definition.errKeyNotFound)
+				}
+				keyBucket := keysBucket.Bucket(key)
+				if keyBucket == nil {
+					return fmt.Errorf("missing key in collections keys bucket: %w", c.definition.errKeyNotFound)
+				}
+				if err := keyBucket.Delete(k); err != nil {
+					return fmt.Errorf("delete value from lists values bucket: %w", err)
+				}
+				if keysBucket.Stats().KeyN == 1 { // stats are updated after the transaction
+					if err := keysBucket.DeleteBucket(key); err != nil {
+						return fmt.Errorf("delete empty key bucket: %w", err)
+					}
+				}
+				return nil
+			},
 		},
 	}, exists, nil
 }
@@ -178,7 +200,12 @@ func (c *Collections[C, K, V]) HasCollection(key C) (bool, error) {
 		return false, nil
 	}
 
-	return collectionsBucket.Bucket(ck) != nil, nil
+	if collectionsBucket.Bucket(ck) == nil {
+		return false, nil
+	}
+
+	f, _ := collectionsBucket.Bucket(ck).Cursor().First()
+	return f != nil, nil
 }
 
 // HasKey returns true if the key already exists in any Collection.
@@ -196,7 +223,12 @@ func (c *Collections[C, K, V]) HasKey(key K) (bool, error) {
 		return false, nil
 	}
 
-	return keysBucket.Bucket(k) != nil, nil
+	if keysBucket.Bucket(k) == nil {
+		return false, nil
+	}
+
+	f, _ := keysBucket.Bucket(k).Cursor().First()
+	return f != nil, nil
 }
 
 // DeleteCollection removes the collection from the database. If ensure flag is

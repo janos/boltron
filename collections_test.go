@@ -122,6 +122,65 @@ func TestCollections(t *testing.T) {
 		assertErrorFail(t, "", err, nil)
 	})
 
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		deletedKeyIndirectly := "alice"
+
+		elections := electionsDefinition.Collections(tx)
+
+		election, _, err := elections.Collection(0)
+		assertErrorFail(t, "", err, nil)
+
+		err = election.Delete(deletedKeyIndirectly, true)
+		assertErrorFail(t, "", err, nil)
+
+		err = election.Delete(deletedKeyIndirectly, true)
+		assertErrorFail(t, "", err, boltron.ErrNotFound)
+
+		has, err := elections.HasKey(deletedKeyIndirectly)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "", has, true)
+
+		var collections []uint64
+		next, err := elections.IterateCollectionsWithKey(deletedKeyIndirectly, nil, false, func(c uint64) (bool, error) {
+			collections = append(collections, c)
+			return true, nil
+		})
+		assertErrorFail(t, "", err, nil)
+		assert(t, "", next, nil)
+
+		assert(t, "", collections, []uint64{5, 7})
+	})
+
+	deletedKeyIndirectly6 := "george"
+
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+
+		elections := electionsDefinition.Collections(tx)
+
+		election, _, err := elections.Collection(6)
+		assertErrorFail(t, "", err, nil)
+
+		err = election.Delete(deletedKeyIndirectly6, true)
+		assertErrorFail(t, "", err, nil)
+
+		err = election.Delete(deletedKeyIndirectly6, true)
+		assertErrorFail(t, "", err, boltron.ErrNotFound)
+
+		has, err := elections.HasKey(deletedKeyIndirectly6)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "", has, false)
+
+		var collections []uint64
+		next, err := elections.IterateCollectionsWithKey(deletedKeyIndirectly6, nil, false, func(c uint64) (bool, error) {
+			collections = append(collections, c)
+			return true, nil
+		})
+		assertErrorFail(t, "", err, nil)
+		assert(t, "", next, nil)
+
+		assert(t, "", collections, nil)
+	})
+
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
 		elections := electionsDefinition.Collections(tx)
 
@@ -142,7 +201,7 @@ func TestCollections(t *testing.T) {
 		for _, e := range testElectionsKeys {
 			has, err := elections.HasKey(e)
 			assertErrorFail(t, fmt.Sprintf("%+v", e), err, nil)
-			assert(t, fmt.Sprintf("%+v", e), has, e != deletedKey)
+			assert(t, fmt.Sprintf("%+v", e), has, e != deletedKey && e != deletedKeyIndirectly6)
 		}
 
 		has, err := elections.HasKey(deletedKey)
@@ -176,7 +235,7 @@ func TestCollections(t *testing.T) {
 
 			has, err = elections.HasKey(e.Voter)
 			assertErrorFail(t, fmt.Sprintf("%+v", e), err, nil)
-			assert(t, fmt.Sprintf("%+v", e), has, e.Voter != deletedKey && e.Voter != "mick")
+			assert(t, fmt.Sprintf("%+v", e), has, e.Voter != deletedKey && e.Voter != deletedKeyIndirectly6 && e.Voter != "mick")
 		}
 	})
 }

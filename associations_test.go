@@ -114,6 +114,66 @@ func TestAssociations(t *testing.T) {
 		assertErrorFail(t, "", err, nil)
 	})
 
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+
+		deletedLeftIndirectly := "dave"
+
+		ballots := ballotsDefinition.Associations(tx)
+
+		ballot, _, err := ballots.Association(1)
+		assertErrorFail(t, "", err, nil)
+
+		err = ballot.DeleteByLeft(deletedLeftIndirectly, true)
+		assertErrorFail(t, "", err, nil)
+
+		err = ballot.DeleteByLeft(deletedLeftIndirectly, true)
+		assertErrorFail(t, "", err, boltron.ErrLeftNotFound)
+
+		has, err := ballots.HasLeft(deletedLeftIndirectly)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "", has, true)
+
+		var associationsWithLeft []uint64
+		next, err := ballots.IterateAssociationsWithLeftValue(deletedLeftIndirectly, nil, false, func(a uint64) (bool, error) {
+			associationsWithLeft = append(associationsWithLeft, a)
+			return true, nil
+		})
+		assertErrorFail(t, "", err, nil)
+		assert(t, "", next, nil)
+
+		assert(t, "", associationsWithLeft, []uint64{3, 6, 7})
+	})
+
+	deletedLeftIndirectly6 := "john"
+
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+
+		ballots := ballotsDefinition.Associations(tx)
+
+		ballot, _, err := ballots.Association(6)
+		assertErrorFail(t, "", err, nil)
+
+		err = ballot.DeleteByLeft(deletedLeftIndirectly6, true)
+		assertErrorFail(t, "", err, nil)
+
+		err = ballot.DeleteByLeft(deletedLeftIndirectly6, true)
+		assertErrorFail(t, "", err, boltron.ErrLeftNotFound)
+
+		has, err := ballots.HasLeft(deletedLeftIndirectly6)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "", has, false)
+
+		var associationsWithLeft []uint64
+		next, err := ballots.IterateAssociationsWithLeftValue(deletedLeftIndirectly6, nil, false, func(a uint64) (bool, error) {
+			associationsWithLeft = append(associationsWithLeft, a)
+			return true, nil
+		})
+		assertErrorFail(t, "", err, nil)
+		assert(t, "", next, nil)
+
+		assert(t, "", associationsWithLeft, nil)
+	})
+
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
 		ballots := ballotsDefinition.Associations(tx)
 
@@ -134,7 +194,7 @@ func TestAssociations(t *testing.T) {
 		for _, b := range testBallotsKeys {
 			has, err := ballots.HasLeft(b)
 			assertErrorFail(t, fmt.Sprintf("%+v", b), err, nil)
-			assert(t, fmt.Sprintf("%+v", b), has, b != deletedLeft)
+			assert(t, fmt.Sprintf("%+v", b), has, b != deletedLeft && b != deletedLeftIndirectly6)
 		}
 
 		has, err := ballots.HasLeft(deletedLeft)
@@ -168,7 +228,7 @@ func TestAssociations(t *testing.T) {
 
 			has, err = ballots.HasLeft(b.Voter)
 			assertErrorFail(t, fmt.Sprintf("%+v", b), err, nil)
-			assert(t, fmt.Sprintf("%+v", b), has, b.Voter != deletedLeft && b.Voter != "mick")
+			assert(t, fmt.Sprintf("%+v", b), has, b.Voter != deletedLeft && b.Voter != deletedLeftIndirectly6 && b.Voter != "mick")
 		}
 	})
 }

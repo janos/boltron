@@ -15,13 +15,14 @@ import (
 // CollectionDefinition defines the most basic data model which is a Collection
 // of keys and values. Each key is a unique within a Collection.
 type CollectionDefinition[K, V any] struct {
-	bucketPath    [][]byte
-	keyEncoding   Encoding[K]
-	valueEncoding Encoding[V]
-	fillPercent   float64
-	errNotFound   error
-	errKeyExists  error
-	saveCallback  func(key []byte) error
+	bucketPath     [][]byte
+	keyEncoding    Encoding[K]
+	valueEncoding  Encoding[V]
+	fillPercent    float64
+	errNotFound    error
+	errKeyExists   error
+	saveCallback   func(key []byte) error
+	deleteCallback func(key []byte) error
 }
 
 // CollectionOptions provides additional configuration for a Collection.
@@ -181,6 +182,13 @@ func (c *Collection[K, V]) Delete(key K, ensure bool) error {
 			return c.definition.errNotFound
 		}
 	}
+
+	if c.definition.deleteCallback != nil {
+		if err := c.definition.deleteCallback(k); err != nil {
+			return fmt.Errorf("delete callback: %w", err)
+		}
+	}
+
 	return bucket.Delete(k)
 }
 
