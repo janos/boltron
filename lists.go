@@ -134,7 +134,7 @@ func (l *Lists[K, V, O]) List(key K) (list *List[V, O], exists bool, err error) 
 	if err != nil {
 		return nil, false, fmt.Errorf("lists bucket: %w", err)
 	}
-	exists = listsBucket != nil && listsBucket.Bucket(k) != nil
+	exists = listsBucket != nil && listsBucket.Bucket(k) != nil && listsBucket.Bucket(k).Stats().KeyN != 0
 
 	return &List[V, O]{
 		tx: l.tx,
@@ -166,6 +166,28 @@ func (l *Lists[K, V, O]) List(key K) (list *List[V, O], exists bool, err error) 
 				}
 				return valueBucket.Put(k, orderBy)
 			},
+			removeCallback: func(value, orderBy []byte) error {
+				valuesBucket, err := l.valuesBucket(false)
+				if err != nil {
+					return fmt.Errorf("values bucket: %w", err)
+				}
+				if valuesBucket == nil {
+					return fmt.Errorf("missing lists values bucket: %w", l.definition.errValueNotFound)
+				}
+				valueBucket := valuesBucket.Bucket(value)
+				if valueBucket == nil {
+					return fmt.Errorf("missing value in lists values bucket: %w", l.definition.errValueNotFound)
+				}
+				if err := valueBucket.Delete(k); err != nil {
+					return fmt.Errorf("delete value from lists values bucket: %w", err)
+				}
+				if valuesBucket.Stats().KeyN == 1 { // stats are updated after the transaction
+					if err := valuesBucket.DeleteBucket(value); err != nil {
+						return fmt.Errorf("delete empty value bucket: %w", err)
+					}
+				}
+				return nil
+			},
 		},
 	}, exists, nil
 }
@@ -186,7 +208,12 @@ func (l *Lists[K, V, O]) HasList(key K) (bool, error) {
 		return false, nil
 	}
 
-	return listsBucket.Bucket(k) != nil, nil
+	if listsBucket.Bucket(k) == nil {
+		return false, nil
+	}
+
+	f, _ := listsBucket.Bucket(k).Cursor().First()
+	return f != nil, nil
 }
 
 // HasValue returns true if the value already exists in any List.
@@ -204,7 +231,12 @@ func (l *Lists[K, V, O]) HasValue(value V) (bool, error) {
 		return false, nil
 	}
 
-	return valuesBucket.Bucket(v) != nil, nil
+	if valuesBucket.Bucket(v) == nil {
+		return false, nil
+	}
+
+	f, _ := valuesBucket.Bucket(v).Cursor().First()
+	return f != nil, nil
 }
 
 // DeleteList removes the list from the database. If ensure flag is set to true

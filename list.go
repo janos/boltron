@@ -23,6 +23,7 @@ type ListDefinition[V, O any] struct {
 	orderByEncoding  Encoding[O]
 	errValueNotFound error
 	addCallback      func(value, orderBy []byte) error // used by Lists
+	removeCallback   func(value, orderBy []byte) error // used by Lists
 }
 
 // ListOptions provides additional configuration for a List.
@@ -230,6 +231,12 @@ func (l *List[V, O]) Remove(value V, ensure bool) error {
 	}
 	if err := indexBucket.Delete(v); err != nil {
 		return fmt.Errorf("delete from index bucket: %w", err)
+	}
+
+	if l.definition.removeCallback != nil {
+		if err := l.definition.removeCallback(v, o); err != nil {
+			return fmt.Errorf("remove callback: %w", err)
+		}
 	}
 
 	return nil
