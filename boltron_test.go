@@ -70,18 +70,6 @@ func assert[T any](t testing.TB, message string, got, want T) {
 	}
 }
 
-func assertFail[T any](t testing.TB, message string, got, want T) {
-	t.Helper()
-
-	if message != "" {
-		message = message + ": "
-	}
-
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("%sgot %v, want %v", message, got, want)
-	}
-}
-
 func assertError(t testing.TB, message string, got, want error) {
 	t.Helper()
 
