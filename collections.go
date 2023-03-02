@@ -351,6 +351,18 @@ func (c *Collections[C, K, V]) DeleteKey(key K, ensure bool) error {
 	return nil
 }
 
+// Size returns the number of collections.
+func (c *Collections[C, K, V]) Size() (int, error) {
+	collectionsBucket, err := c.collectionsBucket(false)
+	if err != nil {
+		return 0, fmt.Errorf("collections bucket: %w", err)
+	}
+	if collectionsBucket == nil {
+		return 0, nil
+	}
+	return size(collectionsBucket, true), nil
+}
+
 // IterateCollections iterates over collection keys in the lexicographical order
 // of keys. If the callback function f returns false, the iteration stops and
 // the next can be used to continue the iteration.

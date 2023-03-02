@@ -407,6 +407,18 @@ func (a *Associations[A, L, R]) DeleteLeft(left L, ensure bool) error {
 	return nil
 }
 
+// Size returns the number of associations.
+func (a *Associations[A, L, R]) Size() (int, error) {
+	leftBuckets, err := a.leftBuckets(false)
+	if err != nil {
+		return 0, fmt.Errorf("left buckets: %w", err)
+	}
+	if leftBuckets == nil {
+		return 0, nil
+	}
+	return size(leftBuckets, true), nil
+}
+
 // IterateAssociations iterates over Association keys in the lexicographical
 // order of keys. If the callback function f returns false, the iteration stops
 // and the next can be used to continue the iteration.

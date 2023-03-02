@@ -377,6 +377,18 @@ func (l *Lists[K, V, O]) DeleteValue(value V, ensure bool) error {
 	return nil
 }
 
+// Size returns the number of lists.
+func (l *Lists[K, V, O]) Size() (int, error) {
+	listsBucket, err := l.listsBucket(false)
+	if err != nil {
+		return 0, fmt.Errorf("lists bucket: %w", err)
+	}
+	if listsBucket == nil {
+		return 0, nil
+	}
+	return size(listsBucket, true), nil
+}
+
 // IterateLists iterates over List keys in the lexicographical order of keys. If
 // the callback function f returns false, the iteration stops and the next can
 // be used to continue the iteration.
@@ -448,7 +460,7 @@ func (l *Lists[K, V, O]) IterateListsWithValue(value V, start *K, reverse bool, 
 }
 
 // ListsElement is the type returned by Lists pagination methods as slice
-// elements that cointain both list key and the order by value of the value in
+// elements that contain both list key and the order by value of the value in
 // that list.
 type ListsElement[K, O any] struct {
 	Key     K

@@ -469,6 +469,32 @@ func TestCollection_iterateValues(t *testing.T) {
 	})
 }
 
+func TestCollection_size(t *testing.T) {
+	db := newRecordsDB(t)
+
+	t.Run("full", func(t *testing.T) {
+		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+			records := recordsDefinition.Collection(tx)
+
+			size, err := records.Size()
+			assertErrorFail(t, "", err, nil)
+			assert(t, "", size, 7)
+		})
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		db := newDB(t)
+
+		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+			records := recordsDefinition.Collection(tx)
+
+			size, err := records.Size()
+			assertErrorFail(t, "", err, nil)
+			assert(t, "", size, 0)
+		})
+	})
+}
+
 func TestCollection_page(t *testing.T) {
 	db := newRecordsDB(t)
 

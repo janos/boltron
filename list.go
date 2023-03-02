@@ -289,8 +289,20 @@ func (l *List[V, O]) IterateValues(start *ListElement[V, O], reverse bool, f fun
 	})
 }
 
+// Size returns the number of list elements.
+func (l *List[V, O]) Size() (int, error) {
+	listBucket, err := l.listBucket(false)
+	if err != nil {
+		return 0, fmt.Errorf("list bucket: %w", err)
+	}
+	if listBucket == nil {
+		return 0, nil
+	}
+	return size(listBucket, false), nil
+}
+
 // ListElement is the type returned by List pagination methods as slice elements
-// that cointain both value and order by.
+// that contain both value and order by.
 type ListElement[V, O any] struct {
 	Value   V
 	OrderBy O

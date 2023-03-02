@@ -494,6 +494,32 @@ func TestAssociation_iterateRightValues(t *testing.T) {
 	})
 }
 
+func TestAssociation_size(t *testing.T) {
+	db := newNumbersDB(t)
+
+	t.Run("full", func(t *testing.T) {
+		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+			numbers := numbersDefinition.Association(tx)
+
+			size, err := numbers.Size()
+			assertErrorFail(t, "", err, nil)
+			assert(t, "", size, 7)
+		})
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		db := newDB(t)
+
+		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+			numbers := numbersDefinition.Association(tx)
+
+			size, err := numbers.Size()
+			assertErrorFail(t, "", err, nil)
+			assert(t, "", size, 0)
+		})
+	})
+}
+
 func TestAssociation_page(t *testing.T) {
 	db := newNumbersDB(t)
 

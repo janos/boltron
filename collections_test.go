@@ -347,6 +347,32 @@ func TestCollections_iterateCollections(t *testing.T) {
 	})
 }
 
+func TestCollections_size(t *testing.T) {
+	db := electionsDB(t)
+
+	t.Run("full", func(t *testing.T) {
+		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+			elections := electionsDefinition.Collections(tx)
+
+			size, err := elections.Size()
+			assertErrorFail(t, "", err, nil)
+			assert(t, "", size, 4)
+		})
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		db := newDB(t)
+
+		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+			elections := electionsDefinition.Collections(tx)
+
+			size, err := elections.Size()
+			assertErrorFail(t, "", err, nil)
+			assert(t, "", size, 0)
+		})
+	})
+}
+
 func TestCollections_pageOfCollections(t *testing.T) {
 	db := electionsDB(t)
 

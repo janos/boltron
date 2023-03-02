@@ -258,8 +258,20 @@ func (c *Collection[K, V]) IterateValues(start *K, reverse bool, f func(V) (bool
 	})
 }
 
+// Size returns the number of collection elements.
+func (c *Collection[K, V]) Size() (int, error) {
+	bucket, err := c.bucket(false)
+	if err != nil {
+		return 0, fmt.Errorf("bucket: %w", err)
+	}
+	if bucket == nil {
+		return 0, nil
+	}
+	return size(bucket, false), nil
+}
+
 // CollectionElement is the type returned by pagination methods as slice
-// elements that cointain both key and value.
+// elements that contain both key and value.
 type CollectionElement[K, V any] struct {
 	Key   K
 	Value V

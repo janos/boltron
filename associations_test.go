@@ -340,6 +340,33 @@ func TestAssociations_iterateAssociations(t *testing.T) {
 	})
 }
 
+func TestAssociations_size(t *testing.T) {
+	db := ballotsDB(t)
+
+	t.Run("full", func(t *testing.T) {
+		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+			ballots := ballotsDefinition.Associations(tx)
+
+			size, err := ballots.Size()
+			assertErrorFail(t, "", err, nil)
+			assert(t, "", size, 4)
+
+		})
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		db := newDB(t)
+
+		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+			ballots := ballotsDefinition.Associations(tx)
+
+			size, err := ballots.Size()
+			assertErrorFail(t, "", err, nil)
+			assert(t, "", size, 0)
+		})
+	})
+}
+
 func TestAssociations_pageOfAssociations(t *testing.T) {
 	db := ballotsDB(t)
 

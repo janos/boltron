@@ -346,6 +346,32 @@ func TestLists_iterateLists(t *testing.T) {
 	})
 }
 
+func TestLists_size(t *testing.T) {
+	db := projectsDependenciesDB(t)
+
+	t.Run("full", func(t *testing.T) {
+		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+			projectDependencies := projectDependenciesDefinition.Lists(tx)
+
+			size, err := projectDependencies.Size()
+			assertErrorFail(t, "", err, nil)
+			assert(t, "", size, 4)
+		})
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		db := newDB(t)
+
+		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+			projectDependencies := projectDependenciesDefinition.Lists(tx)
+
+			size, err := projectDependencies.Size()
+			assertErrorFail(t, "", err, nil)
+			assert(t, "", size, 0)
+		})
+	})
+}
+
 func TestLists_pageOfLists(t *testing.T) {
 	db := projectsDependenciesDB(t)
 

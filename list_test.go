@@ -343,6 +343,32 @@ func TestList_iterateValues(t *testing.T) {
 	})
 }
 
+func TestList_size(t *testing.T) {
+	db := newTodoDB(t)
+
+	t.Run("full", func(t *testing.T) {
+		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+			todo := todoDefinition.List(tx)
+
+			size, err := todo.Size()
+			assertErrorFail(t, "", err, nil)
+			assert(t, "", size, 9)
+		})
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		db := newDB(t)
+
+		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+			todo := todoDefinition.List(tx)
+
+			size, err := todo.Size()
+			assertErrorFail(t, "", err, nil)
+			assert(t, "", size, 0)
+		})
+	})
+}
+
 func TestList_page(t *testing.T) {
 	db := newTodoDB(t)
 

@@ -448,6 +448,18 @@ func (a *Association[L, R]) IterateRightValues(start *R, reverse bool, f func(R)
 	})
 }
 
+// Size returns the number of associations.
+func (a *Association[L, R]) Size() (int, error) {
+	leftBucket, err := a.leftBucket(false)
+	if err != nil {
+		return 0, fmt.Errorf("left bucket: %w", err)
+	}
+	if leftBucket == nil {
+		return 0, nil
+	}
+	return size(leftBucket, false), nil
+}
+
 // AssociationElement is the type returned by pagination methods as slice
 // elements that cointain both key and value.
 type AssociationElement[L, R any] struct {

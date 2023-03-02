@@ -233,6 +233,13 @@ func page[E any](bucket *bolt.Bucket, bucketOfBuckets bool, number, limit int, r
 	return s, totalElements, pages, err
 }
 
+func size(bucket *bolt.Bucket, bucketOfBuckets bool) int {
+	if bucketOfBuckets {
+		return bucket.Stats().BucketN - 1 // exclude the top bucket
+	}
+	return bucket.Stats().KeyN
+}
+
 func withDefaultError(v, d error) error {
 	if v != nil {
 		return v
