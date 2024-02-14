@@ -80,7 +80,7 @@ func (c *Collection[K, V]) bucket(create bool) (*bolt.Bucket, error) {
 	if err != nil {
 		return nil, err
 	}
-	if c.definition.fillPercent > 0 {
+	if c.definition.fillPercent > 0 && bucket != nil {
 		bucket.FillPercent = c.definition.fillPercent
 	}
 	c.bucketCache = bucket
