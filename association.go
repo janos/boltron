@@ -461,7 +461,7 @@ func (a *Association[L, R]) Size() (int, error) {
 }
 
 // AssociationElement is the type returned by pagination methods as slice
-// elements that cointain both key and value.
+// elements that contain both key and value.
 type AssociationElement[L, R any] struct {
 	Left  L
 	Right R
