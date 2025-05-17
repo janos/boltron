@@ -22,6 +22,7 @@ type ListsDefinition[K, V, O any] struct {
 	keyEncoding       Encoding[K]
 	valueEncoding     Encoding[V]
 	orderByEncoding   Encoding[O]
+	fillPercent       float64
 	uniqueValues      bool
 	errListNotFound   error
 	errValueNotFound  error
@@ -30,6 +31,9 @@ type ListsDefinition[K, V, O any] struct {
 
 // ListsOptions provides additional configuration for a Lists instance.
 type ListsOptions struct {
+	// FillPercent is the value for the bolt bucket fill percent for every
+	// collection.
+	FillPercent float64
 	// UniqueValues marks if a value can be added only to a single list.
 	UniqueValues bool
 	// ErrListNotFound is returned if the list identified by the key is not
@@ -61,6 +65,7 @@ func NewListsDefinition[K, V, O any](
 		keyEncoding:       keyEncoding,
 		valueEncoding:     valueEncoding,
 		orderByEncoding:   orderByEncoding,
+		fillPercent:       o.FillPercent,
 		uniqueValues:      o.UniqueValues,
 		errListNotFound:   withDefaultError(o.ErrListNotFound, ErrNotFound),
 		errValueNotFound:  withDefaultError(o.ErrValueNotFound, ErrNotFound),
@@ -143,6 +148,7 @@ func (l *Lists[K, V, O]) List(key K) (list *List[V, O], exists bool, err error) 
 			bucketPathIndex:  [][]byte{l.definition.bucketNameIndexes, k},
 			valueEncoding:    l.definition.valueEncoding,
 			orderByEncoding:  l.definition.orderByEncoding,
+			fillPercent:      l.definition.fillPercent,
 			errValueNotFound: l.definition.errValueNotFound,
 			addCallback: func(value, orderBy []byte) error {
 				valuesBucket, err := l.valuesBucket(true)

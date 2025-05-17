@@ -35,6 +35,7 @@ type AssociationDefinition[L, R any] struct {
 	bucketPathRight  [][]byte
 	leftEncoding     Encoding[L]
 	rightEncoding    Encoding[R]
+	fillPercent      float64
 	errLeftNotFound  error
 	errRightNotFound error
 	errLeftExists    error
@@ -45,6 +46,8 @@ type AssociationDefinition[L, R any] struct {
 
 // AssociationOptions provides additional configuration for an Association.
 type AssociationOptions struct {
+	// FillPercent is the value for the bolt bucket fill percent.
+	FillPercent float64
 	// ErrLeftNotFound is returned if the left value is not found.
 	ErrLeftNotFound error
 	// ErrRightNotFound is returned if the right value is not found.
@@ -71,6 +74,7 @@ func NewAssociationDefinition[L, R any](
 		bucketPathRight:  bucketPath("boltron: association: " + name + " right"),
 		leftEncoding:     leftEncoding,
 		rightEncoding:    rightEncoding,
+		fillPercent:      o.FillPercent,
 		errLeftNotFound:  withDefaultError(o.ErrLeftNotFound, ErrLeftNotFound),
 		errRightNotFound: withDefaultError(o.ErrRightNotFound, ErrRightNotFound),
 		errLeftExists:    withDefaultError(o.ErrLeftExists, ErrLeftExists),
@@ -103,6 +107,9 @@ func (a *Association[L, R]) leftBucket(create bool) (*bolt.Bucket, error) {
 	if err != nil {
 		return nil, err
 	}
+	if a.definition.fillPercent > 0 && bucket != nil {
+		bucket.FillPercent = a.definition.fillPercent
+	}
 	a.leftBucketCache = bucket
 	return bucket, nil
 }
@@ -114,6 +121,9 @@ func (a *Association[L, R]) rightBucket(create bool) (*bolt.Bucket, error) {
 	bucket, err := deepBucket(a.tx, create, a.definition.bucketPathRight...)
 	if err != nil {
 		return nil, err
+	}
+	if a.definition.fillPercent > 0 && bucket != nil {
+		bucket.FillPercent = a.definition.fillPercent
 	}
 	a.rightBucketCache = bucket
 	return bucket, nil

@@ -51,6 +51,7 @@ func NewCollectionDefinition[K, V any](
 		bucketPath:    bucketPath("boltron: collection: " + name),
 		keyEncoding:   keyEncoding,
 		valueEncoding: valueEncoding,
+		fillPercent:   o.FillPercent,
 		errNotFound:   withDefaultError(o.ErrNotFound, ErrNotFound),
 		errKeyExists:  withDefaultError(o.ErrKeyExists, ErrKeyExists),
 	}

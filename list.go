@@ -21,6 +21,7 @@ type ListDefinition[V, O any] struct {
 	bucketPathIndex  [][]byte
 	valueEncoding    Encoding[V]
 	orderByEncoding  Encoding[O]
+	fillPercent      float64
 	errValueNotFound error
 	addCallback      func(value, orderBy []byte) error // used by Lists
 	removeCallback   func(value, orderBy []byte) error // used by Lists
@@ -28,6 +29,8 @@ type ListDefinition[V, O any] struct {
 
 // ListOptions provides additional configuration for a List.
 type ListOptions struct {
+	// FillPercent is the value for the bolt bucket fill percent.
+	FillPercent float64
 	// ErrValueNotFound is returned if the value is not found.
 	ErrValueNotFound error
 }
@@ -48,6 +51,7 @@ func NewListDefinition[V, O any](
 		bucketPathIndex:  bucketPath("boltron: list: " + name + " index"),
 		valueEncoding:    valueEncoding,
 		orderByEncoding:  orderByEncoding,
+		fillPercent:      o.FillPercent,
 		errValueNotFound: withDefaultError(o.ErrValueNotFound, ErrNotFound),
 	}
 }
@@ -77,6 +81,9 @@ func (l *List[V, O]) listBucket(create bool) (*bolt.Bucket, error) {
 	if err != nil {
 		return nil, err
 	}
+	if l.definition.fillPercent > 0 && bucket != nil {
+		bucket.FillPercent = l.definition.fillPercent
+	}
 	l.listBucketCache = bucket
 	return bucket, nil
 }
@@ -88,6 +95,9 @@ func (l *List[V, O]) indexBucket(create bool) (*bolt.Bucket, error) {
 	bucket, err := deepBucket(l.tx, create, l.definition.bucketPathIndex...)
 	if err != nil {
 		return nil, err
+	}
+	if l.definition.fillPercent > 0 && bucket != nil {
+		bucket.FillPercent = l.definition.fillPercent
 	}
 	l.indexBucketCache = bucket
 	return bucket, nil

@@ -23,6 +23,7 @@ type AssociationsDefinition[A, L, R any] struct {
 	leftEncoding           Encoding[L]
 	rightEncoding          Encoding[R]
 	uniqueLeftValues       bool
+	fillPercent            float64
 	errAssociationNotFound error
 	errLeftNotFound        error
 	errRightNotFound       error
@@ -33,6 +34,9 @@ type AssociationsDefinition[A, L, R any] struct {
 // AssociationsOptions provides additional configuration for an Association
 // instance.
 type AssociationsOptions struct {
+	// FillPercent is the value for the bolt bucket fill percent for every
+	// collection.
+	FillPercent float64
 	// UniqueLeftValues marks if left value can be added only to a single
 	// association.
 	UniqueLeftValues bool
@@ -72,6 +76,7 @@ func NewAssociationsDefinition[A, L, R any](
 		associationKeyEncoding: associationKeyEncoding,
 		leftEncoding:           leftEncoding,
 		rightEncoding:          rightEncoding,
+		fillPercent:            o.FillPercent,
 		uniqueLeftValues:       o.UniqueLeftValues,
 		errAssociationNotFound: withDefaultError(o.ErrAssociationNotFound, ErrNotFound),
 		errLeftNotFound:        withDefaultError(o.ErrLeftNotFound, ErrLeftNotFound),
@@ -157,6 +162,7 @@ func (a *Associations[A, L, R]) Association(key A) (association *Association[L, 
 			bucketPathRight:  [][]byte{a.definition.bucketNameRight, ak},
 			leftEncoding:     a.definition.leftEncoding,
 			rightEncoding:    a.definition.rightEncoding,
+			fillPercent:      a.definition.fillPercent,
 			errLeftNotFound:  a.definition.errLeftNotFound,
 			errRightNotFound: a.definition.errRightNotFound,
 			errLeftExists:    a.definition.errLeftExists,
