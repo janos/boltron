@@ -31,17 +31,17 @@ var (
 // AssociationDefinition defines one-to-one relation between values named left
 // and right. The relation is unique.
 type AssociationDefinition[L, R any] struct {
-	bucketPathLeft   [][]byte
-	bucketPathRight  [][]byte
-	leftEncoding     Encoding[L]
-	rightEncoding    Encoding[R]
-	fillPercent      float64
-	errLeftNotFound  error
-	errRightNotFound error
-	errLeftExists    error
-	errRightExists   error
-	setCallback      func(left []byte) error
-	deleteCallback   func(left []byte) error
+	bucketPathLeft       [][]byte
+	bucketPathRight      [][]byte
+	indexBucketPathLeft  [][]byte
+	indexBucketPathRight [][]byte
+	leftEncoding         Encoding[L]
+	rightEncoding        Encoding[R]
+	fillPercent          float64
+	errLeftNotFound      error
+	errRightNotFound     error
+	errLeftExists        error
+	errRightExists       error
 }
 
 // AssociationOptions provides additional configuration for an Association.
@@ -56,6 +56,10 @@ type AssociationOptions struct {
 	ErrLeftExists error
 	// ErrRightExists is returned if the right value in relation already exists.
 	ErrRightExists error
+	// UniqueLeft enables global uniqueness indexing for left values across all instances.
+	UniqueLeft bool
+	// UniqueRight enables global uniqueness indexing for right values across all instances.
+	UniqueRight bool
 }
 
 // NewAssociationDefinition constructs a new AssociationDefinition with a unique
@@ -69,16 +73,26 @@ func NewAssociationDefinition[L, R any](
 	if o == nil {
 		o = new(AssociationOptions)
 	}
+	var indexBucketPathLeft [][]byte
+	if o.UniqueLeft {
+		indexBucketPathLeft = bucketPath("boltron: association: index: " + name + " unique_left")
+	}
+	var indexBucketPathRight [][]byte
+	if o.UniqueRight {
+		indexBucketPathRight = bucketPath("boltron: association: index: " + name + " unique_right")
+	}
 	return &AssociationDefinition[L, R]{
-		bucketPathLeft:   bucketPath("boltron: association: " + name + " left"),
-		bucketPathRight:  bucketPath("boltron: association: " + name + " right"),
-		leftEncoding:     leftEncoding,
-		rightEncoding:    rightEncoding,
-		fillPercent:      o.FillPercent,
-		errLeftNotFound:  withDefaultError(o.ErrLeftNotFound, ErrLeftNotFound),
-		errRightNotFound: withDefaultError(o.ErrRightNotFound, ErrRightNotFound),
-		errLeftExists:    withDefaultError(o.ErrLeftExists, ErrLeftExists),
-		errRightExists:   withDefaultError(o.ErrRightExists, ErrRightExists),
+		bucketPathLeft:       bucketPath("boltron: association: " + name + " left"),
+		bucketPathRight:      bucketPath("boltron: association: " + name + " right"),
+		indexBucketPathLeft:  indexBucketPathLeft,
+		indexBucketPathRight: indexBucketPathRight,
+		leftEncoding:         leftEncoding,
+		rightEncoding:        rightEncoding,
+		fillPercent:          o.FillPercent,
+		errLeftNotFound:      withDefaultError(o.ErrLeftNotFound, ErrLeftNotFound),
+		errRightNotFound:     withDefaultError(o.ErrRightNotFound, ErrRightNotFound),
+		errLeftExists:        withDefaultError(o.ErrLeftExists, ErrLeftExists),
+		errRightExists:       withDefaultError(o.ErrRightExists, ErrRightExists),
 	}
 }
 
@@ -221,7 +235,7 @@ func (a *Association[L, R]) Right(left L) (right R, err error) {
 
 // Set saves the relation between the left and right values. If left value
 // already exists, configured ErrLeftExists is returned, if right value exists,
-// configured ErrValueExists is returned.
+// configured ErrRightExists is returned.
 func (a *Association[L, R]) Set(left L, right R) error {
 	l, err := a.definition.leftEncoding.Encode(left)
 	if err != nil {
@@ -258,17 +272,53 @@ func (a *Association[L, R]) Set(left L, right R) error {
 		return a.definition.errLeftExists
 	}
 
+	if a.definition.indexBucketPathLeft != nil {
+		indexBucket, err := deepBucket(a.tx, true, a.definition.indexBucketPathLeft...)
+		if err != nil {
+			return fmt.Errorf("unique left index bucket: %w", err)
+		}
+		existingPathData := indexBucket.Get(l)
+		if existingPathData != nil {
+			existingPath, err := decodePath(existingPathData)
+			if err != nil {
+				return fmt.Errorf("decode existing left path: %w", err)
+			}
+			if !equalPaths(existingPath, a.definition.bucketPathLeft) {
+				return a.definition.errLeftExists
+			}
+		} else {
+			if err := indexBucket.Put(l, encodePath(a.definition.bucketPathLeft)); err != nil {
+				return fmt.Errorf("write left index entry: %w", err)
+			}
+		}
+	}
+
+	if a.definition.indexBucketPathRight != nil {
+		indexBucket, err := deepBucket(a.tx, true, a.definition.indexBucketPathRight...)
+		if err != nil {
+			return fmt.Errorf("unique right index bucket: %w", err)
+		}
+		existingPathData := indexBucket.Get(r)
+		if existingPathData != nil {
+			existingPath, err := decodePath(existingPathData)
+			if err != nil {
+				return fmt.Errorf("decode existing right path: %w", err)
+			}
+			if !equalPaths(existingPath, a.definition.bucketPathRight) {
+				return a.definition.errRightExists
+			}
+		} else {
+			if err := indexBucket.Put(r, encodePath(a.definition.bucketPathRight)); err != nil {
+				return fmt.Errorf("write right index entry: %w", err)
+			}
+		}
+	}
+
 	if err := leftBucket.Put(l, r); err != nil {
 		return fmt.Errorf("put left: %w", err)
 	}
 	if err := rightBucket.Put(r, l); err != nil {
 		return fmt.Errorf("put right: %w", err)
-	}
-
-	if a.definition.setCallback != nil {
-		if err := a.definition.setCallback(l); err != nil {
-			return fmt.Errorf("set callback: %w", err)
-		}
 	}
 
 	return nil
@@ -303,10 +353,6 @@ func (a *Association[L, R]) DeleteByLeft(left L, ensure bool) error {
 		return nil
 	}
 
-	if err := leftBucket.Delete(l); err != nil {
-		return fmt.Errorf("delete left: %w", err)
-	}
-
 	rightBucket, err := a.rightBucket(false)
 	if err != nil {
 		return fmt.Errorf("right bucket: %w", err)
@@ -319,17 +365,77 @@ func (a *Association[L, R]) DeleteByLeft(left L, ensure bool) error {
 		return nil
 	}
 
-	if err := rightBucket.Delete(r); err != nil {
-		return fmt.Errorf("delete right: %w", err)
+	// 1. Cascading nested sub-buckets cleanup for left
+	suffixes := [][]byte{
+		l,
+		append(append([]byte(nil), l...), []byte(" left")...),
+		append(append([]byte(nil), l...), []byte(" right")...),
+		append(append([]byte(nil), l...), []byte(" values")...),
+		append(append([]byte(nil), l...), []byte(" index")...),
 	}
-
-	if a.definition.deleteCallback != nil {
-		if err := a.definition.deleteCallback(l); err != nil {
-			return fmt.Errorf("delete callback: %w", err)
+	for _, suffix := range suffixes {
+		if leftBucket.Bucket(suffix) != nil {
+			prefixPath := append(a.definition.bucketPathLeft, suffix)
+			if err := cleanupIndexesForPath(a.tx, prefixPath); err != nil {
+				return fmt.Errorf("cleanup left indexes for %s: %w", suffix, err)
+			}
+			if err := leftBucket.DeleteBucket(suffix); err != nil {
+				return fmt.Errorf("delete nested left bucket %s: %w", suffix, err)
+			}
 		}
 	}
 
-	return nil
+	// 2. Cascading nested sub-buckets cleanup for right
+	suffixesRight := [][]byte{
+		r,
+		append(append([]byte(nil), r...), []byte(" left")...),
+		append(append([]byte(nil), r...), []byte(" right")...),
+		append(append([]byte(nil), r...), []byte(" values")...),
+		append(append([]byte(nil), r...), []byte(" index")...),
+	}
+	for _, suffix := range suffixesRight {
+		if rightBucket.Bucket(suffix) != nil {
+			prefixPath := append(a.definition.bucketPathRight, suffix)
+			if err := cleanupIndexesForPath(a.tx, prefixPath); err != nil {
+				return fmt.Errorf("cleanup right indexes for %s: %w", suffix, err)
+			}
+			if err := rightBucket.DeleteBucket(suffix); err != nil {
+				return fmt.Errorf("delete nested right bucket %s: %w", suffix, err)
+			}
+		}
+	}
+
+	// 3. Remove unique left index entry
+	if a.definition.indexBucketPathLeft != nil {
+		uniqueLeftBucket, err := deepBucket(a.tx, false, a.definition.indexBucketPathLeft...)
+		if err != nil {
+			return fmt.Errorf("unique left index bucket: %w", err)
+		}
+		if uniqueLeftBucket != nil {
+			if err := uniqueLeftBucket.Delete(l); err != nil {
+				return fmt.Errorf("delete unique left index: %w", err)
+			}
+		}
+	}
+
+	// 4. Remove unique right index entry
+	if a.definition.indexBucketPathRight != nil {
+		uniqueRightBucket, err := deepBucket(a.tx, false, a.definition.indexBucketPathRight...)
+		if err != nil {
+			return fmt.Errorf("unique right index bucket: %w", err)
+		}
+		if uniqueRightBucket != nil {
+			if err := uniqueRightBucket.Delete(r); err != nil {
+				return fmt.Errorf("delete unique right index: %w", err)
+			}
+		}
+	}
+
+	if err := leftBucket.Delete(l); err != nil {
+		return fmt.Errorf("delete left: %w", err)
+	}
+
+	return rightBucket.Delete(r)
 }
 
 // DeleteByRight removes the relation that contains the provided right value. If
@@ -373,21 +479,77 @@ func (a *Association[L, R]) DeleteByRight(right R, ensure bool) error {
 		return nil
 	}
 
+	// 1. Cascading nested sub-buckets cleanup for left
+	suffixes := [][]byte{
+		l,
+		append(append([]byte(nil), l...), []byte(" left")...),
+		append(append([]byte(nil), l...), []byte(" right")...),
+		append(append([]byte(nil), l...), []byte(" values")...),
+		append(append([]byte(nil), l...), []byte(" index")...),
+	}
+	for _, suffix := range suffixes {
+		if leftBucket.Bucket(suffix) != nil {
+			prefixPath := append(a.definition.bucketPathLeft, suffix)
+			if err := cleanupIndexesForPath(a.tx, prefixPath); err != nil {
+				return fmt.Errorf("cleanup left indexes for %s: %w", suffix, err)
+			}
+			if err := leftBucket.DeleteBucket(suffix); err != nil {
+				return fmt.Errorf("delete nested left bucket %s: %w", suffix, err)
+			}
+		}
+	}
+
+	// 2. Cascading nested sub-buckets cleanup for right
+	suffixesRight := [][]byte{
+		r,
+		append(append([]byte(nil), r...), []byte(" left")...),
+		append(append([]byte(nil), r...), []byte(" right")...),
+		append(append([]byte(nil), r...), []byte(" values")...),
+		append(append([]byte(nil), r...), []byte(" index")...),
+	}
+	for _, suffix := range suffixesRight {
+		if rightBucket.Bucket(suffix) != nil {
+			prefixPath := append(a.definition.bucketPathRight, suffix)
+			if err := cleanupIndexesForPath(a.tx, prefixPath); err != nil {
+				return fmt.Errorf("cleanup right indexes for %s: %w", suffix, err)
+			}
+			if err := rightBucket.DeleteBucket(suffix); err != nil {
+				return fmt.Errorf("delete nested right bucket %s: %w", suffix, err)
+			}
+		}
+	}
+
+	// 3. Remove unique left index entry
+	if a.definition.indexBucketPathLeft != nil {
+		uniqueLeftBucket, err := deepBucket(a.tx, false, a.definition.indexBucketPathLeft...)
+		if err != nil {
+			return fmt.Errorf("unique left index bucket: %w", err)
+		}
+		if uniqueLeftBucket != nil {
+			if err := uniqueLeftBucket.Delete(l); err != nil {
+				return fmt.Errorf("delete unique left index: %w", err)
+			}
+		}
+	}
+
+	// 4. Remove unique right index entry
+	if a.definition.indexBucketPathRight != nil {
+		uniqueRightBucket, err := deepBucket(a.tx, false, a.definition.indexBucketPathRight...)
+		if err != nil {
+			return fmt.Errorf("unique right index bucket: %w", err)
+		}
+		if uniqueRightBucket != nil {
+			if err := uniqueRightBucket.Delete(r); err != nil {
+				return fmt.Errorf("delete unique right index: %w", err)
+			}
+		}
+	}
+
 	if err := leftBucket.Delete(l); err != nil {
 		return fmt.Errorf("delete left: %w", err)
 	}
 
-	if err := rightBucket.Delete(r); err != nil {
-		return fmt.Errorf("delete right: %w", err)
-	}
-
-	if a.definition.deleteCallback != nil {
-		if err := a.definition.deleteCallback(l); err != nil {
-			return fmt.Errorf("delete callback: %w", err)
-		}
-	}
-
-	return nil
+	return rightBucket.Delete(r)
 }
 
 // Iterate iterates over associations in the lexicographical order of left
@@ -533,4 +695,182 @@ func (a *Association[L, R]) PageOfRightValues(number, limit int, reverse bool) (
 	return page(rightBucket, false, number, limit, reverse, func(r, _ []byte) (right R, err error) {
 		return a.definition.rightEncoding.Decode(r)
 	})
+}
+
+// CollectionByLeft returns a nested Collection inside the left bucket of the association under the given left value.
+func (a *Association[L, R]) CollectionByLeft[K2, V2 any](left L, definition *CollectionDefinition[K2, V2]) (*Collection[K2, V2], error) {
+	l, err := a.definition.leftEncoding.Encode(left)
+	if err != nil {
+		return nil, fmt.Errorf("encode left: %w", err)
+	}
+
+	newPath := make([][]byte, len(a.definition.bucketPathLeft)+1)
+	copy(newPath, a.definition.bucketPathLeft)
+	newPath[len(a.definition.bucketPathLeft)] = l
+
+	nestedDef := &CollectionDefinition[K2, V2]{
+		bucketPath:      newPath,
+		indexBucketPath: definition.indexBucketPath,
+		keyEncoding:     definition.keyEncoding,
+		valueEncoding:   definition.valueEncoding,
+		fillPercent:     definition.fillPercent,
+		errNotFound:     definition.errNotFound,
+		errKeyExists:    definition.errKeyExists,
+	}
+
+	return nestedDef.Collection(a.tx), nil
+}
+
+// AssociationByLeft returns a nested Association inside the left bucket of the association under the given left value.
+func (a *Association[L, R]) AssociationByLeft[L2, R2 any](left L, definition *AssociationDefinition[L2, R2]) (*Association[L2, R2], error) {
+	l, err := a.definition.leftEncoding.Encode(left)
+	if err != nil {
+		return nil, fmt.Errorf("encode left: %w", err)
+	}
+
+	newPathLeft := make([][]byte, len(a.definition.bucketPathLeft)+1)
+	copy(newPathLeft, a.definition.bucketPathLeft)
+	newPathLeft[len(a.definition.bucketPathLeft)] = append(append([]byte(nil), l...), []byte(" left")...)
+
+	newPathRight := make([][]byte, len(a.definition.bucketPathLeft)+1)
+	copy(newPathRight, a.definition.bucketPathLeft)
+	newPathRight[len(a.definition.bucketPathLeft)] = append(append([]byte(nil), l...), []byte(" right")...)
+
+	nestedDef := &AssociationDefinition[L2, R2]{
+		bucketPathLeft:       newPathLeft,
+		bucketPathRight:      newPathRight,
+		indexBucketPathLeft:  definition.indexBucketPathLeft,
+		indexBucketPathRight: definition.indexBucketPathRight,
+		leftEncoding:         definition.leftEncoding,
+		rightEncoding:        definition.rightEncoding,
+		fillPercent:          definition.fillPercent,
+		errLeftNotFound:      definition.errLeftNotFound,
+		errRightNotFound:     definition.errRightNotFound,
+		errLeftExists:        definition.errLeftExists,
+		errRightExists:       definition.errRightExists,
+	}
+
+	return nestedDef.Association(a.tx), nil
+}
+
+// ListByLeft returns a nested List inside the left bucket of the association under the given left value.
+func (a *Association[L, R]) ListByLeft[V2, O2 any](left L, definition *ListDefinition[V2, O2]) (*List[V2, O2], error) {
+	l, err := a.definition.leftEncoding.Encode(left)
+	if err != nil {
+		return nil, fmt.Errorf("encode left: %w", err)
+	}
+
+	newPath := make([][]byte, len(a.definition.bucketPathLeft)+1)
+	copy(newPath, a.definition.bucketPathLeft)
+	newPath[len(a.definition.bucketPathLeft)] = append(append([]byte(nil), l...), []byte(" values")...)
+
+	newPathIndex := make([][]byte, len(a.definition.bucketPathLeft)+1)
+	copy(newPathIndex, a.definition.bucketPathLeft)
+	newPathIndex[len(a.definition.bucketPathLeft)] = append(append([]byte(nil), l...), []byte(" index")...)
+
+	nestedDef := &ListDefinition[V2, O2]{
+		bucketPath:       newPath,
+		bucketPathIndex:  newPathIndex,
+		indexBucketPath:  definition.indexBucketPath,
+		valueEncoding:    definition.valueEncoding,
+		orderByEncoding:  definition.orderByEncoding,
+		fillPercent:      definition.fillPercent,
+		errValueNotFound: definition.errValueNotFound,
+	}
+
+	return nestedDef.List(a.tx), nil
+}
+
+// ParentKeyByLeft returns the decoded parent key of the container nested under the left value. If the container is at the root level, ErrNoParent is returned.
+func (d *AssociationDefinition[L, R]) ParentKeyByLeft[P any](tx *bolt.Tx, left L, parentKeyEncoding Encoding[P]) (parentKey P, err error) {
+	if d.indexBucketPathLeft == nil {
+		if len(d.bucketPathLeft) <= 1 {
+			return parentKey, ErrNoParent
+		}
+		return parentKey, fmt.Errorf("unique left index not configured")
+	}
+	l, err := d.leftEncoding.Encode(left)
+	if err != nil {
+		return parentKey, fmt.Errorf("encode left: %w", err)
+	}
+	indexBucket, err := deepBucket(tx, false, d.indexBucketPathLeft...)
+	if err != nil {
+		return parentKey, fmt.Errorf("index bucket: %w", err)
+	}
+	if indexBucket == nil {
+		return parentKey, ErrNotFound
+	}
+	pathData := indexBucket.Get(l)
+	if pathData == nil {
+		return parentKey, d.errLeftNotFound
+	}
+	path, err := decodePath(pathData)
+	if err != nil {
+		return parentKey, fmt.Errorf("decode path: %w", err)
+	}
+	if len(path) <= 1 {
+		return parentKey, ErrNoParent
+	}
+	last := path[len(path)-1]
+
+	suffixes := []string{" left", " right", " values", " index"}
+	for _, suffix := range suffixes {
+		if before, ok := bytes.CutSuffix(last, []byte(suffix)); ok {
+			last = before
+			break
+		}
+	}
+
+	parentKey, err = parentKeyEncoding.Decode(last)
+	if err != nil {
+		return parentKey, fmt.Errorf("decode parent key: %w", err)
+	}
+	return parentKey, nil
+}
+
+// ParentKeyByRight returns the decoded parent key of the container nested under the right value. If the container is at the root level, ErrNoParent is returned.
+func (d *AssociationDefinition[L, R]) ParentKeyByRight[P any](tx *bolt.Tx, right R, parentKeyEncoding Encoding[P]) (parentKey P, err error) {
+	if d.indexBucketPathRight == nil {
+		if len(d.bucketPathRight) <= 1 {
+			return parentKey, ErrNoParent
+		}
+		return parentKey, fmt.Errorf("unique right index not configured")
+	}
+	r, err := d.rightEncoding.Encode(right)
+	if err != nil {
+		return parentKey, fmt.Errorf("encode right: %w", err)
+	}
+	indexBucket, err := deepBucket(tx, false, d.indexBucketPathRight...)
+	if err != nil {
+		return parentKey, fmt.Errorf("index bucket: %w", err)
+	}
+	if indexBucket == nil {
+		return parentKey, ErrNotFound
+	}
+	pathData := indexBucket.Get(r)
+	if pathData == nil {
+		return parentKey, d.errRightNotFound
+	}
+	path, err := decodePath(pathData)
+	if err != nil {
+		return parentKey, fmt.Errorf("decode path: %w", err)
+	}
+	if len(path) <= 1 {
+		return parentKey, ErrNoParent
+	}
+	last := path[len(path)-1]
+
+	suffixes := []string{" left", " right", " values", " index"}
+	for _, suffix := range suffixes {
+		if before, ok := bytes.CutSuffix(last, []byte(suffix)); ok {
+			last = before
+			break
+		}
+	}
+
+	parentKey, err = parentKeyEncoding.Decode(last)
+	if err != nil {
+		return parentKey, fmt.Errorf("decode parent key: %w", err)
+	}
+	return parentKey, nil
 }

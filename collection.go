@@ -15,14 +15,13 @@ import (
 // CollectionDefinition defines the most basic data model which is a Collection
 // of keys and values. Each key is a unique within a Collection.
 type CollectionDefinition[K, V any] struct {
-	bucketPath     [][]byte
-	keyEncoding    Encoding[K]
-	valueEncoding  Encoding[V]
-	fillPercent    float64
-	errNotFound    error
-	errKeyExists   error
-	saveCallback   func(key []byte) error
-	deleteCallback func(key []byte) error
+	bucketPath      [][]byte
+	indexBucketPath [][]byte
+	keyEncoding     Encoding[K]
+	valueEncoding   Encoding[V]
+	fillPercent     float64
+	errNotFound     error
+	errKeyExists    error
 }
 
 // CollectionOptions provides additional configuration for a Collection.
@@ -34,6 +33,8 @@ type CollectionOptions struct {
 	// ErrKeyExists is returned if the key already exists and its value is not
 	// allowed to be overwritten.
 	ErrKeyExists error
+	// UniqueKeys enables global uniqueness indexing across all instances.
+	UniqueKeys bool
 }
 
 // NewCollectionDefinition constructs a new CollectionDefinition with a unique
@@ -47,13 +48,18 @@ func NewCollectionDefinition[K, V any](
 	if o == nil {
 		o = new(CollectionOptions)
 	}
+	var indexBucketPath [][]byte
+	if o.UniqueKeys {
+		indexBucketPath = bucketPath("boltron: collection: index: " + name + " unique_keys")
+	}
 	return &CollectionDefinition[K, V]{
-		bucketPath:    bucketPath("boltron: collection: " + name),
-		keyEncoding:   keyEncoding,
-		valueEncoding: valueEncoding,
-		fillPercent:   o.FillPercent,
-		errNotFound:   withDefaultError(o.ErrNotFound, ErrNotFound),
-		errKeyExists:  withDefaultError(o.ErrKeyExists, ErrKeyExists),
+		bucketPath:      bucketPath("boltron: collection: " + name),
+		indexBucketPath: indexBucketPath,
+		keyEncoding:     keyEncoding,
+		valueEncoding:   valueEncoding,
+		fillPercent:     o.FillPercent,
+		errNotFound:     withDefaultError(o.ErrNotFound, ErrNotFound),
+		errKeyExists:    withDefaultError(o.ErrKeyExists, ErrKeyExists),
 	}
 }
 
@@ -150,9 +156,24 @@ func (c *Collection[K, V]) Save(key K, value V, overwrite bool) (overwritten boo
 		return false, c.definition.errKeyExists
 	}
 
-	if c.definition.saveCallback != nil {
-		if err := c.definition.saveCallback(k); err != nil {
-			return false, fmt.Errorf("save callback: %w", err)
+	if c.definition.indexBucketPath != nil {
+		indexBucket, err := deepBucket(c.tx, true, c.definition.indexBucketPath...)
+		if err != nil {
+			return false, fmt.Errorf("index bucket: %w", err)
+		}
+		existingPathData := indexBucket.Get(k)
+		if existingPathData != nil {
+			existingPath, err := decodePath(existingPathData)
+			if err != nil {
+				return false, fmt.Errorf("decode existing path: %w", err)
+			}
+			if !equalPaths(existingPath, c.definition.bucketPath) {
+				return false, c.definition.errKeyExists
+			}
+		} else {
+			if err := indexBucket.Put(k, encodePath(c.definition.bucketPath)); err != nil {
+				return false, fmt.Errorf("write index entry: %w", err)
+			}
 		}
 	}
 
@@ -184,9 +205,36 @@ func (c *Collection[K, V]) Delete(key K, ensure bool) error {
 		}
 	}
 
-	if c.definition.deleteCallback != nil {
-		if err := c.definition.deleteCallback(k); err != nil {
-			return fmt.Errorf("delete callback: %w", err)
+	// 1. Cascading nested sub-buckets cleanup
+	suffixes := [][]byte{
+		k,
+		append(append([]byte(nil), k...), []byte(" left")...),
+		append(append([]byte(nil), k...), []byte(" right")...),
+		append(append([]byte(nil), k...), []byte(" values")...),
+		append(append([]byte(nil), k...), []byte(" index")...),
+	}
+	for _, suffix := range suffixes {
+		if bucket.Bucket(suffix) != nil {
+			prefixPath := append(c.definition.bucketPath, suffix)
+			if err := cleanupIndexesForPath(c.tx, prefixPath); err != nil {
+				return fmt.Errorf("cleanup indexes for %s: %w", suffix, err)
+			}
+			if err := bucket.DeleteBucket(suffix); err != nil {
+				return fmt.Errorf("delete nested bucket %s: %w", suffix, err)
+			}
+		}
+	}
+
+	// 2. Remove unique keys index entry
+	if c.definition.indexBucketPath != nil {
+		indexBucket, err := deepBucket(c.tx, false, c.definition.indexBucketPath...)
+		if err != nil {
+			return fmt.Errorf("index bucket: %w", err)
+		}
+		if indexBucket != nil {
+			if err := indexBucket.Delete(k); err != nil {
+				return fmt.Errorf("delete unique key index: %w", err)
+			}
 		}
 	}
 
@@ -332,4 +380,135 @@ func (c *Collection[K, V]) PageOfValues(number, limit int, reverse bool) (s []V,
 	return page(bucket, false, number, limit, reverse, func(_, v []byte) (key V, err error) {
 		return c.definition.valueEncoding.Decode(v)
 	})
+}
+
+// Collection returns a nested Collection inside the current collection under the given key.
+func (c *Collection[K, V]) Collection[K2, V2 any](key K, definition *CollectionDefinition[K2, V2]) (*Collection[K2, V2], error) {
+	k, err := c.definition.keyEncoding.Encode(key)
+	if err != nil {
+		return nil, fmt.Errorf("encode key: %w", err)
+	}
+
+	newPath := make([][]byte, len(c.definition.bucketPath)+1)
+	copy(newPath, c.definition.bucketPath)
+	newPath[len(c.definition.bucketPath)] = k
+
+	nestedDef := &CollectionDefinition[K2, V2]{
+		bucketPath:      newPath,
+		indexBucketPath: definition.indexBucketPath,
+		keyEncoding:     definition.keyEncoding,
+		valueEncoding:   definition.valueEncoding,
+		fillPercent:     definition.fillPercent,
+		errNotFound:     definition.errNotFound,
+		errKeyExists:    definition.errKeyExists,
+	}
+
+	return nestedDef.Collection(c.tx), nil
+}
+
+// Association returns a nested Association inside the current collection under the given key.
+func (c *Collection[K, V]) Association[L2, R2 any](key K, definition *AssociationDefinition[L2, R2]) (*Association[L2, R2], error) {
+	k, err := c.definition.keyEncoding.Encode(key)
+	if err != nil {
+		return nil, fmt.Errorf("encode key: %w", err)
+	}
+
+	newPathLeft := make([][]byte, len(c.definition.bucketPath)+1)
+	copy(newPathLeft, c.definition.bucketPath)
+	newPathLeft[len(c.definition.bucketPath)] = append(append([]byte(nil), k...), []byte(" left")...)
+
+	newPathRight := make([][]byte, len(c.definition.bucketPath)+1)
+	copy(newPathRight, c.definition.bucketPath)
+	newPathRight[len(c.definition.bucketPath)] = append(append([]byte(nil), k...), []byte(" right")...)
+
+	nestedDef := &AssociationDefinition[L2, R2]{
+		bucketPathLeft:       newPathLeft,
+		bucketPathRight:      newPathRight,
+		indexBucketPathLeft:  definition.indexBucketPathLeft,
+		indexBucketPathRight: definition.indexBucketPathRight,
+		leftEncoding:         definition.leftEncoding,
+		rightEncoding:        definition.rightEncoding,
+		fillPercent:          definition.fillPercent,
+		errLeftNotFound:      definition.errLeftNotFound,
+		errRightNotFound:     definition.errRightNotFound,
+		errLeftExists:        definition.errLeftExists,
+		errRightExists:       definition.errRightExists,
+	}
+
+	return nestedDef.Association(c.tx), nil
+}
+
+// List returns a nested List inside the current collection under the given key.
+func (c *Collection[K, V]) List[V2, O2 any](key K, definition *ListDefinition[V2, O2]) (*List[V2, O2], error) {
+	k, err := c.definition.keyEncoding.Encode(key)
+	if err != nil {
+		return nil, fmt.Errorf("encode key: %w", err)
+	}
+
+	newPath := make([][]byte, len(c.definition.bucketPath)+1)
+	copy(newPath, c.definition.bucketPath)
+	newPath[len(c.definition.bucketPath)] = append(append([]byte(nil), k...), []byte(" values")...)
+
+	newPathIndex := make([][]byte, len(c.definition.bucketPath)+1)
+	copy(newPathIndex, c.definition.bucketPath)
+	newPathIndex[len(c.definition.bucketPath)] = append(append([]byte(nil), k...), []byte(" index")...)
+
+	nestedDef := &ListDefinition[V2, O2]{
+		bucketPath:       newPath,
+		bucketPathIndex:  newPathIndex,
+		indexBucketPath:  definition.indexBucketPath,
+		valueEncoding:    definition.valueEncoding,
+		orderByEncoding:  definition.orderByEncoding,
+		fillPercent:      definition.fillPercent,
+		errValueNotFound: definition.errValueNotFound,
+	}
+
+	return nestedDef.List(c.tx), nil
+}
+
+// ParentKey returns the decoded parent key of the container. If the container is at the root level, ErrNoParent is returned.
+func (d *CollectionDefinition[K, V]) ParentKey[P any](tx *bolt.Tx, key K, parentKeyEncoding Encoding[P]) (parentKey P, err error) {
+	if d.indexBucketPath == nil {
+		if len(d.bucketPath) <= 1 {
+			return parentKey, ErrNoParent
+		}
+		return parentKey, fmt.Errorf("unique keys index not configured")
+	}
+	k, err := d.keyEncoding.Encode(key)
+	if err != nil {
+		return parentKey, fmt.Errorf("encode key: %w", err)
+	}
+	indexBucket, err := deepBucket(tx, false, d.indexBucketPath...)
+	if err != nil {
+		return parentKey, fmt.Errorf("index bucket: %w", err)
+	}
+	if indexBucket == nil {
+		return parentKey, ErrNotFound
+	}
+	pathData := indexBucket.Get(k)
+	if pathData == nil {
+		return parentKey, d.errNotFound
+	}
+	path, err := decodePath(pathData)
+	if err != nil {
+		return parentKey, fmt.Errorf("decode path: %w", err)
+	}
+	if len(path) <= 1 {
+		return parentKey, ErrNoParent
+	}
+	last := path[len(path)-1]
+
+	suffixes := []string{" left", " right", " values", " index"}
+	for _, suffix := range suffixes {
+		if before, ok := bytes.CutSuffix(last, []byte(suffix)); ok {
+			last = before
+			break
+		}
+	}
+
+	parentKey, err = parentKeyEncoding.Decode(last)
+	if err != nil {
+		return parentKey, fmt.Errorf("decode parent key: %w", err)
+	}
+	return parentKey, nil
 }

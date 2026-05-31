@@ -29,6 +29,30 @@ func TestStringEncoding(t *testing.T) {
 	})
 }
 
+func TestBytesEncoding(t *testing.T) {
+	tableTestEncoding(t, boltron.BytesEncoding, []struct {
+		value   []byte
+		encoded []byte
+	}{
+		{nil, nil},
+		{[]byte{}, []byte{}},
+		{[]byte("test"), []byte("test")},
+		{[]byte("💥"), []byte("💥")},
+	})
+}
+
+func TestBytesUnsafeEncoding(t *testing.T) {
+	tableTestEncoding(t, boltron.BytesUnsafeEncoding, []struct {
+		value   []byte
+		encoded []byte
+	}{
+		{nil, nil},
+		{[]byte{}, []byte{}},
+		{[]byte("test"), []byte("test")},
+		{[]byte("💥"), []byte("💥")},
+	})
+}
+
 func TestStringNaturalOrderEncoding(t *testing.T) {
 
 	encodedValue := func(part1, part2 string) []byte {

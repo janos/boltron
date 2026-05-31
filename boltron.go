@@ -19,9 +19,12 @@ package boltron
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 
+	"go.etcd.io/bbolt"
 	bolt "go.etcd.io/bbolt"
+	"resenje.org/boltron/internal/bboltext"
 )
 
 func deepBucket(tx *bolt.Tx, create bool, path ...[]byte) (*bolt.Bucket, error) {
@@ -184,53 +187,70 @@ func iterate(bucket *bolt.Bucket, startKey []byte, reverse bool, f func(k, v []b
 	return nextKey, nextValue, nil
 }
 
-func page[E any](bucket *bolt.Bucket, bucketOfBuckets bool, number, limit int, reverse bool, f func(k, v []byte) (E, error)) (s []E, totalElements, pages int, err error) {
+func page[E any](bucket *bbolt.Bucket, bucketOfBuckets bool, number, limit int, reverse bool, f func(k, v []byte) (E, error)) (s []E, totalElements, pages int, err error) {
 	if number <= 0 {
-		return nil, 0, 0, ErrInvalidPageNumber
+		return nil, 0, 0, ErrInvalidPageNumber // Assuming ErrInvalidPageNumber is defined
 	}
 	if limit <= 0 {
 		limit = 100
 	}
 	start := (number - 1) * limit
-	end := number * limit
 
+	// 1. Calculate totals and pagination metadata
 	if bucketOfBuckets {
 		totalElements = bucket.Stats().BucketN - 1 // exclude the top bucket
 	} else {
 		totalElements = bucket.Stats().KeyN
 	}
+
 	pages = totalElements / limit
 	if totalElements%limit != 0 {
 		pages++
 	}
-	cursor := bucket.Cursor()
-	var count int
-	var last, prev func() (k, v []byte)
-	if reverse {
-		last = cursor.Last
-		prev = cursor.Prev
-	} else {
-		last = cursor.First
-		prev = cursor.Next
-	}
-	for k, v := last(); k != nil; k, v = prev() {
-		count++
-		if count <= start {
-			continue
-		}
-		if count > end {
-			break
-		}
 
+	// Return early if there are no elements or the requested page is out of bounds
+	if totalElements == 0 || start >= totalElements {
+		return nil, totalElements, pages, nil
+	}
+
+	cursor := bucket.Cursor()
+	var k, v []byte
+
+	// 2. Initialize the cursor position
+	if reverse {
+		k, v = cursor.Last()
+	} else {
+		k, v = cursor.First()
+	}
+
+	// Sanity check in case the bucket is empty despite stats
+	if k == nil {
+		return nil, totalElements, pages, nil
+	}
+
+	// 3. Jump directly to the offset using the optimized Skip
+	if start > 0 {
+		// If reverse is true, forward is false (and vice versa)
+		k, v = bboltext.Skip(cursor, start, !reverse)
+	}
+
+	// 4. Collect exactly 'limit' elements for the current page
+	for i := 0; i < limit && k != nil; i++ {
 		e, err := f(k, v)
 		if err != nil {
 			return nil, 0, 0, err
 		}
-
 		s = append(s, e)
+
+		// Step to the next element for collection
+		if reverse {
+			k, v = cursor.Prev()
+		} else {
+			k, v = cursor.Next()
+		}
 	}
 
-	return s, totalElements, pages, err
+	return s, totalElements, pages, nil
 }
 
 func size(bucket *bolt.Bucket, bucketOfBuckets bool) int {
@@ -245,4 +265,94 @@ func withDefaultError(v, d error) error {
 		return v
 	}
 	return d
+}
+
+func encodePath(path [][]byte) []byte {
+	var buf bytes.Buffer
+	var tmp [4]byte
+	binary.BigEndian.PutUint32(tmp[:], uint32(len(path)))
+	buf.Write(tmp[:])
+	for _, p := range path {
+		binary.BigEndian.PutUint32(tmp[:], uint32(len(p)))
+		buf.Write(tmp[:])
+		buf.Write(p)
+	}
+	return buf.Bytes()
+}
+
+func decodePath(data []byte) ([][]byte, error) {
+	if len(data) < 4 {
+		return nil, fmt.Errorf("invalid path data size")
+	}
+	length := binary.BigEndian.Uint32(data[:4])
+	data = data[4:]
+	path := make([][]byte, 0, length)
+	for range length {
+		if len(data) < 4 {
+			return nil, fmt.Errorf("invalid path data format")
+		}
+		itemLen := binary.BigEndian.Uint32(data[:4])
+		data = data[4:]
+		if len(data) < int(itemLen) {
+			return nil, fmt.Errorf("invalid path item size")
+		}
+		path = append(path, data[:itemLen])
+		data = data[itemLen:]
+	}
+	return path, nil
+}
+
+func equalPaths(a, b [][]byte) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if !bytes.Equal(a[i], b[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func cleanupIndexesForPath(tx *bolt.Tx, prefixPath [][]byte) error {
+	return tx.ForEach(func(name []byte, b *bolt.Bucket) error {
+		if !bytes.HasPrefix(name, []byte("boltron:")) {
+			return nil
+		}
+		if !bytes.Contains(name, []byte("unique_")) {
+			return nil
+		}
+		var keysToDelete [][]byte
+		err := b.ForEach(func(k, v []byte) error {
+			path, err := decodePath(v)
+			if err != nil {
+				return nil
+			}
+			if hasPathPrefix(path, prefixPath) {
+				keysToDelete = append(keysToDelete, k)
+			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+		for _, k := range keysToDelete {
+			if err := b.Delete(k); err != nil {
+				return fmt.Errorf("delete key from index %s: %w", name, err)
+			}
+		}
+		return nil
+	})
+}
+
+func hasPathPrefix(path, prefix [][]byte) bool {
+	if len(path) < len(prefix) {
+		return false
+	}
+	for i := range prefix {
+		if !bytes.Equal(path[i], prefix[i]) {
+			return false
+		}
+	}
+	return true
 }

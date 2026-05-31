@@ -18,4 +18,7 @@ var (
 	// ErrInvalidPageNumber is returned on on pagination methods where page
 	// number is less than 1.
 	ErrInvalidPageNumber = errors.New("boltron: invalid page number")
+	// ErrNoParent is returned if ParentKey is called on a root container.
+	ErrNoParent = errors.New("boltron: no parent container")
 )
+

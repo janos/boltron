@@ -1,7 +1,7 @@
 module resenje.org/boltron
 
-go 1.20
+go 1.27
 
-require go.etcd.io/bbolt v1.3.7
+require go.etcd.io/bbolt v1.5.0-rc.0
 
-require golang.org/x/sys v0.5.0 // indirect
+require golang.org/x/sys v0.45.0 // indirect

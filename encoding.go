@@ -58,6 +58,39 @@ var (
 		},
 	)
 
+	// BytesEncoding encodes a byte slice directly by returning a copy of it.
+	BytesEncoding = NewEncoding(
+		func(v []byte) ([]byte, error) {
+			if v == nil {
+				return nil, nil
+			}
+			b := make([]byte, len(v))
+			copy(b, v)
+			return b, nil
+		},
+		func(b []byte) ([]byte, error) {
+			if b == nil {
+				return nil, nil
+			}
+			v := make([]byte, len(b))
+			copy(v, b)
+			return v, nil
+		},
+	)
+
+	// BytesUnsafeEncoding encodes a byte slice directly without making a copy.
+	// It is highly optimized for zero allocations, but returned values point
+	// directly to memory-mapped BoltDB pages. They are only valid during the
+	// transaction lifetime and must never be modified.
+	BytesUnsafeEncoding = NewEncoding(
+		func(v []byte) ([]byte, error) {
+			return v, nil
+		},
+		func(b []byte) ([]byte, error) {
+			return b, nil
+		},
+	)
+
 	// StringNaturalOrderEncoding encodes string to be case insensitive and
 	// numerically sorted. It takes more than a double space to store the value
 	// as it keeps it in the original form in bas64 encoding alongside the

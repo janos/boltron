@@ -6,6 +6,7 @@
 package boltron
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 
@@ -19,12 +20,11 @@ import (
 type ListDefinition[V, O any] struct {
 	bucketPath       [][]byte
 	bucketPathIndex  [][]byte
+	indexBucketPath  [][]byte
 	valueEncoding    Encoding[V]
 	orderByEncoding  Encoding[O]
 	fillPercent      float64
 	errValueNotFound error
-	addCallback      func(value, orderBy []byte) error // used by Lists
-	removeCallback   func(value, orderBy []byte) error // used by Lists
 }
 
 // ListOptions provides additional configuration for a List.
@@ -33,6 +33,8 @@ type ListOptions struct {
 	FillPercent float64
 	// ErrValueNotFound is returned if the value is not found.
 	ErrValueNotFound error
+	// UniqueValues enables global uniqueness indexing across all list instances.
+	UniqueValues bool
 }
 
 // NewListDefinition constructs a new ListDefinition with a unique name and key
@@ -46,9 +48,14 @@ func NewListDefinition[V, O any](
 	if o == nil {
 		o = new(ListOptions)
 	}
+	var indexBucketPath [][]byte
+	if o.UniqueValues {
+		indexBucketPath = bucketPath("boltron: list: index: " + name + " unique_values")
+	}
 	return &ListDefinition[V, O]{
 		bucketPath:       bucketPath("boltron: list: " + name + " values"),
 		bucketPathIndex:  bucketPath("boltron: list: " + name + " index"),
+		indexBucketPath:  indexBucketPath,
 		valueEncoding:    valueEncoding,
 		orderByEncoding:  orderByEncoding,
 		fillPercent:      o.FillPercent,
@@ -158,6 +165,27 @@ func (l *List[V, O]) Add(value V, orderBy O) error {
 		return fmt.Errorf("encode order by: %w", err)
 	}
 
+	if l.definition.indexBucketPath != nil {
+		indexBucket, err := deepBucket(l.tx, true, l.definition.indexBucketPath...)
+		if err != nil {
+			return fmt.Errorf("unique index bucket: %w", err)
+		}
+		existingPathData := indexBucket.Get(v)
+		if existingPathData != nil {
+			existingPath, err := decodePath(existingPathData)
+			if err != nil {
+				return fmt.Errorf("decode existing path: %w", err)
+			}
+			if !equalPaths(existingPath, l.definition.bucketPath) {
+				return ErrValueExists
+			}
+		} else {
+			if err := indexBucket.Put(v, encodePath(l.definition.bucketPath)); err != nil {
+				return fmt.Errorf("write index entry: %w", err)
+			}
+		}
+	}
+
 	indexBucket, err := l.indexBucket(true)
 	if err != nil {
 		return fmt.Errorf("index bucket: %w", err)
@@ -184,12 +212,6 @@ func (l *List[V, O]) Add(value V, orderBy O) error {
 	}
 	if err := indexBucket.Put(v, o); err != nil {
 		return fmt.Errorf("put to index bucket: %w", err)
-	}
-
-	if l.definition.addCallback != nil {
-		if err := l.definition.addCallback(v, o); err != nil {
-			return fmt.Errorf("add callback: %w", err)
-		}
 	}
 
 	return nil
@@ -236,20 +258,39 @@ func (l *List[V, O]) Remove(value V, ensure bool) error {
 		return nil
 	}
 
-	if err := listBucket.Delete(append(o, v...)); err != nil {
-		return fmt.Errorf("delete from list bucket: %w", err)
+	// 1. Cascading nested sub-buckets cleanup
+	suffixes := [][]byte{
+		v,
+		append(v, []byte(" left")...),
+		append(v, []byte(" right")...),
+		append(v, []byte(" values")...),
+		append(v, []byte(" index")...),
 	}
-	if err := indexBucket.Delete(v); err != nil {
-		return fmt.Errorf("delete from index bucket: %w", err)
-	}
-
-	if l.definition.removeCallback != nil {
-		if err := l.definition.removeCallback(v, o); err != nil {
-			return fmt.Errorf("remove callback: %w", err)
+	for _, suffix := range suffixes {
+		if listBucket.Bucket(suffix) != nil {
+			if err := listBucket.DeleteBucket(suffix); err != nil {
+				return fmt.Errorf("delete nested bucket %s: %w", suffix, err)
+			}
 		}
 	}
 
-	return nil
+	// 2. Remove unique values index entry
+	if l.definition.indexBucketPath != nil {
+		uniqueBucket, err := deepBucket(l.tx, false, l.definition.indexBucketPath...)
+		if err != nil {
+			return fmt.Errorf("unique index bucket: %w", err)
+		}
+		if uniqueBucket != nil {
+			if err := uniqueBucket.Delete(v); err != nil {
+				return fmt.Errorf("delete unique value index: %w", err)
+			}
+		}
+	}
+
+	if err := listBucket.Delete(append(o, v...)); err != nil {
+		return fmt.Errorf("delete from list bucket: %w", err)
+	}
+	return indexBucket.Delete(v)
 }
 
 // Iterate iterates over keys and values in the lexicographical order of keys.
@@ -359,4 +400,135 @@ func (l *List[V, O]) PageOfValues(number, limit int, reverse bool) (s []V, total
 	return page(listBucket, false, number, limit, reverse, func(_, v []byte) (value V, err error) {
 		return l.definition.valueEncoding.Decode(v)
 	})
+}
+
+// Collection returns a nested Collection inside the list under the given value.
+func (l *List[V, O]) Collection[K2, V2 any](value V, definition *CollectionDefinition[K2, V2]) (*Collection[K2, V2], error) {
+	val, err := l.definition.valueEncoding.Encode(value)
+	if err != nil {
+		return nil, fmt.Errorf("encode value: %w", err)
+	}
+
+	newPath := make([][]byte, len(l.definition.bucketPath)+1)
+	copy(newPath, l.definition.bucketPath)
+	newPath[len(l.definition.bucketPath)] = val
+
+	nestedDef := &CollectionDefinition[K2, V2]{
+		bucketPath:      newPath,
+		indexBucketPath: definition.indexBucketPath,
+		keyEncoding:     definition.keyEncoding,
+		valueEncoding:   definition.valueEncoding,
+		fillPercent:     definition.fillPercent,
+		errNotFound:     definition.errNotFound,
+		errKeyExists:    definition.errKeyExists,
+	}
+
+	return nestedDef.Collection(l.tx), nil
+}
+
+// Association returns a nested Association inside the list under the given value.
+func (l *List[V, O]) Association[L2, R2 any](value V, definition *AssociationDefinition[L2, R2]) (*Association[L2, R2], error) {
+	val, err := l.definition.valueEncoding.Encode(value)
+	if err != nil {
+		return nil, fmt.Errorf("encode value: %w", err)
+	}
+
+	newPathLeft := make([][]byte, len(l.definition.bucketPath)+1)
+	copy(newPathLeft, l.definition.bucketPath)
+	newPathLeft[len(l.definition.bucketPath)] = append(append([]byte(nil), val...), []byte(" left")...)
+
+	newPathRight := make([][]byte, len(l.definition.bucketPath)+1)
+	copy(newPathRight, l.definition.bucketPath)
+	newPathRight[len(l.definition.bucketPath)] = append(append([]byte(nil), val...), []byte(" right")...)
+
+	nestedDef := &AssociationDefinition[L2, R2]{
+		bucketPathLeft:       newPathLeft,
+		bucketPathRight:      newPathRight,
+		indexBucketPathLeft:  definition.indexBucketPathLeft,
+		indexBucketPathRight: definition.indexBucketPathRight,
+		leftEncoding:         definition.leftEncoding,
+		rightEncoding:        definition.rightEncoding,
+		fillPercent:          definition.fillPercent,
+		errLeftNotFound:      definition.errLeftNotFound,
+		errRightNotFound:     definition.errRightNotFound,
+		errLeftExists:        definition.errLeftExists,
+		errRightExists:       definition.errRightExists,
+	}
+
+	return nestedDef.Association(l.tx), nil
+}
+
+// List returns a nested List inside the list under the given value.
+func (l *List[V, O]) List[V2, O2 any](value V, definition *ListDefinition[V2, O2]) (*List[V2, O2], error) {
+	val, err := l.definition.valueEncoding.Encode(value)
+	if err != nil {
+		return nil, fmt.Errorf("encode value: %w", err)
+	}
+
+	newPath := make([][]byte, len(l.definition.bucketPath)+1)
+	copy(newPath, l.definition.bucketPath)
+	newPath[len(l.definition.bucketPath)] = append(append([]byte(nil), val...), []byte(" values")...)
+
+	newPathIndex := make([][]byte, len(l.definition.bucketPath)+1)
+	copy(newPathIndex, l.definition.bucketPath)
+	newPathIndex[len(l.definition.bucketPath)] = append(append([]byte(nil), val...), []byte(" index")...)
+
+	nestedDef := &ListDefinition[V2, O2]{
+		bucketPath:       newPath,
+		bucketPathIndex:  newPathIndex,
+		indexBucketPath:  definition.indexBucketPath,
+		valueEncoding:    definition.valueEncoding,
+		orderByEncoding:  definition.orderByEncoding,
+		fillPercent:      definition.fillPercent,
+		errValueNotFound: definition.errValueNotFound,
+	}
+
+	return nestedDef.List(l.tx), nil
+}
+
+// ParentKey returns the decoded parent key of the container. If the container is at the root level, ErrNoParent is returned.
+func (d *ListDefinition[V, O]) ParentKey[P any](tx *bolt.Tx, value V, parentKeyEncoding Encoding[P]) (parentKey P, err error) {
+	if d.indexBucketPath == nil {
+		if len(d.bucketPath) <= 1 {
+			return parentKey, ErrNoParent
+		}
+		return parentKey, fmt.Errorf("unique values index not configured")
+	}
+	val, err := d.valueEncoding.Encode(value)
+	if err != nil {
+		return parentKey, fmt.Errorf("encode value: %w", err)
+	}
+	indexBucket, err := deepBucket(tx, false, d.indexBucketPath...)
+	if err != nil {
+		return parentKey, fmt.Errorf("index bucket: %w", err)
+	}
+	if indexBucket == nil {
+		return parentKey, ErrNotFound
+	}
+	pathData := indexBucket.Get(val)
+	if pathData == nil {
+		return parentKey, d.errValueNotFound
+	}
+	path, err := decodePath(pathData)
+	if err != nil {
+		return parentKey, fmt.Errorf("decode path: %w", err)
+	}
+	if len(path) <= 1 {
+		return parentKey, ErrNoParent
+	}
+	last := path[len(path)-1]
+
+	suffixes := []string{" left", " right", " values", " index"}
+	for _, suffix := range suffixes {
+		if before, ok := bytes.CutSuffix(last, []byte(suffix)); ok {
+			last = before
+			break
+		}
+	}
+
+	parentKey, err = parentKeyEncoding.Decode(last)
+	if err != nil {
+		return parentKey, fmt.Errorf("decode parent key: %w", err)
+	}
+	return parentKey, nil
 }
