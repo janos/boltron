@@ -11,18 +11,32 @@ jobs:
 
     steps:
 
-    - name: Set up Go
+    # Bootstrap a stable Go version needed to compile gotip
+    - name: Set up Stable Go (Bootstrap)
       uses: actions/setup-go@v6
       with:
-        go-version: '1.26'
-        cache: true
+        go-version: 'stable'
+        cache: false # Disable default caching to prevent stable cache overrides
 
-    - name: Install gotip
+    # Install, download, and link gotip to completely replace go
+    - name: Install and Replace Go with GoTip
       run: |
+        # Install the gotip downloader tool
         go install golang.org/dl/gotip@latest
-        GOTIP_ROOT=$("$(go env GOPATH)/bin/gotip" env GOROOT)
-        echo "GOROOT=$GOTIP_ROOT" >> "$GITHUB_ENV"
-        echo "$GOTIP_ROOT/bin" >> "$GITHUB_PATH"
+
+        # Run the downloader to fetch and compile the latest Go development source
+        gotip download
+
+        # Locate the compiled gotip SDK directory (usually ~/sdk/gotip)
+        GOTIP_BIN="$HOME/sdk/gotip/bin"
+
+        # Prepend the gotip binary directory directly to the GitHub Actions PATH environment
+        echo "$GOTIP_BIN" >> $GITHUB_PATH
+
+    # Verify that the 'go' command maps directly to the development version
+    - name: Verify Go Version
+      run: go version
+
 
     - name: Checkout
       uses: actions/checkout@v5
