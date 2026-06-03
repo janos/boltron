@@ -22,6 +22,8 @@ import (
 	"fmt"
 
 	bolt "go.etcd.io/bbolt"
+
+	"resenje.org/boltron/internal/bboltext"
 )
 
 func deepBucket(tx *bolt.Tx, create bool, path ...[]byte) (*bolt.Bucket, error) {
@@ -186,52 +188,70 @@ func iterate(bucket *bolt.Bucket, startKey []byte, reverse bool, f func(k, v []b
 
 func page[E any](bucket *bolt.Bucket, bucketOfBuckets bool, number, limit int, reverse bool, f func(k, v []byte) (E, error)) (s []E, totalElements, pages int, err error) {
 	if number <= 0 {
-		return nil, 0, 0, ErrInvalidPageNumber
+		return nil, 0, 0, ErrInvalidPageNumber // Assuming ErrInvalidPageNumber is defined
 	}
 	if limit <= 0 {
 		limit = 100
 	}
 	start := (number - 1) * limit
-	end := number * limit
 
+	// 1. Calculate totals and pagination metadata
 	if bucketOfBuckets {
 		totalElements = bucket.Stats().BucketN - 1 // exclude the top bucket
 	} else {
 		totalElements = bucket.Stats().KeyN
 	}
+
 	pages = totalElements / limit
 	if totalElements%limit != 0 {
 		pages++
 	}
-	cursor := bucket.Cursor()
-	var count int
-	var last, prev func() (k, v []byte)
-	if reverse {
-		last = cursor.Last
-		prev = cursor.Prev
-	} else {
-		last = cursor.First
-		prev = cursor.Next
-	}
-	for k, v := last(); k != nil; k, v = prev() {
-		count++
-		if count <= start {
-			continue
-		}
-		if count > end {
-			break
-		}
 
+	// Return early if there are no elements or the requested page is out of bounds
+	if totalElements == 0 || start >= totalElements {
+		return nil, totalElements, pages, nil
+	}
+
+	cursor := bucket.Cursor()
+	var k, v []byte
+
+	// 2. Initialize the cursor position
+	if reverse {
+		k, v = cursor.Last()
+	} else {
+		k, v = cursor.First()
+	}
+
+	// Sanity check in case the bucket is empty despite stats
+	if k == nil {
+		return nil, totalElements, pages, nil
+	}
+
+	// 3. Jump directly to the offset using the optimized Skip
+	if start > 0 {
+		// If reverse is true, forward is false (and vice versa)
+		k, v = bboltext.Skip(cursor, start, !reverse)
+	}
+
+	// 4. Collect exactly 'limit' elements for the current page
+	for i := 0; i < limit && k != nil; i++ {
 		e, err := f(k, v)
 		if err != nil {
 			return nil, 0, 0, err
 		}
-
 		s = append(s, e)
+
+		// Step to the next element for collection
+		if reverse {
+			k, v = cursor.Prev()
+		} else {
+			k, v = cursor.Next()
+		}
 	}
 
-	return s, totalElements, pages, err
+	return s, totalElements, pages, nil
 }
+
 
 func size(bucket *bolt.Bucket, bucketOfBuckets bool) int {
 	if bucketOfBuckets {
