@@ -58,7 +58,7 @@ var (
 		},
 	)
 
-		// BytesEncoding encodes a byte slice directly by returning a copy of it.
+	// BytesEncoding encodes a byte slice directly by returning a copy of it.
 	BytesEncoding = NewEncoding(
 		func(v []byte) ([]byte, error) {
 			if v == nil {

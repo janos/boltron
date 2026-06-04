@@ -89,29 +89,29 @@ type elemRefMirror struct {
 }
 
 type pageMirror struct {
-	id       uint64
-	flags    uint16
+	id       uint64 //nolint:unused
+	flags    uint16 //nolint:unused
 	count    uint16
-	overflow uint32
-	ptr      uintptr
+	overflow uint32  //nolint:unused
+	ptr      uintptr //nolint:unused
 }
 
 type inodeMirror struct {
-	flags uint32
-	pgid  uint64
-	key   []byte
-	value []byte
+	flags uint32 //nolint:unused
+	pgid  uint64 //nolint:unused
+	key   []byte //nolint:unused
+	value []byte //nolint:unused
 }
 
 type nodeMirror struct {
-	bucket     unsafe.Pointer
-	isLeaf     bool
-	unbalanced bool
-	spilled    bool
-	key        []byte
-	pgid       uint64
-	parent     unsafe.Pointer
-	children   []unsafe.Pointer
+	bucket     unsafe.Pointer   //nolint:unused
+	isLeaf     bool             //nolint:unused
+	unbalanced bool             //nolint:unused
+	spilled    bool             //nolint:unused
+	key        []byte           //nolint:unused
+	pgid       uint64           //nolint:unused
+	parent     unsafe.Pointer   //nolint:unused
+	children   []unsafe.Pointer //nolint:unused
 	inodes     []inodeMirror
 }
 

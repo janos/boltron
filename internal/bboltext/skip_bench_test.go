@@ -36,7 +36,7 @@ func BenchmarkSkip(b *testing.B) {
 			db, bucketName, cleanup := setupBenchDB(b, scenario.numKeys, scenario.keySize, scenario.valSize)
 			defer cleanup()
 
-			db.View(func(tx *bbolt.Tx) error {
+			if err := db.View(func(tx *bbolt.Tx) error {
 				bucket := tx.Bucket(bucketName)
 				c := bucket.Cursor()
 
@@ -71,7 +71,9 @@ func BenchmarkSkip(b *testing.B) {
 					})
 				}
 				return nil
-			})
+			}); err != nil {
+				b.Fatalf("db.View failed: %v", err)
+			}
 		})
 	}
 }

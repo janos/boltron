@@ -252,7 +252,6 @@ func page[E any](bucket *bolt.Bucket, bucketOfBuckets bool, number, limit int, r
 	return s, totalElements, pages, nil
 }
 
-
 func size(bucket *bolt.Bucket, bucketOfBuckets bool) int {
 	if bucketOfBuckets {
 		return bucket.Stats().BucketN - 1 // exclude the top bucket

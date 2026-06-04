@@ -28,7 +28,7 @@ func TestSkip(t *testing.T) {
 		return fmt.Appendf(nil, "key-%06d", i)
 	}
 
-	db.View(func(tx *bbolt.Tx) error {
+	if err := db.View(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(bucketName)
 
 		t.Run("Forward Large Jumps", func(t *testing.T) {
@@ -170,7 +170,9 @@ func TestSkip(t *testing.T) {
 		})
 
 		return nil
-	})
+	}); err != nil {
+		t.Fatalf("db.View failed: %v", err)
+	}
 }
 
 // setupDB creates a temporary database and populates it with a specified number of keys.
