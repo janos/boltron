@@ -21,7 +21,7 @@ type Record struct {
 }
 
 var (
-	recordsDefinition = boltron.NewCollectionDefinition(
+	records = boltron.NewCollection(
 		"records",
 		boltron.IntBase10Encoding,
 		recordEncoding,
@@ -79,7 +79,7 @@ func TestCollection_singleRecord(t *testing.T) {
 	r := testRecords[0]
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		records := recordsDefinition.Collection(tx)
+		records := records.Tx(tx)
 
 		overwritten, err := records.Save(r.ID, r, false)
 		assertErrorFail(t, "", err, nil)
@@ -95,7 +95,7 @@ func TestCollection_singleRecord(t *testing.T) {
 	})
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		records := recordsDefinition.Collection(tx)
+		records := records.Tx(tx)
 
 		v, err := records.Get(r.ID)
 		assertErrorFail(t, "", err, nil)
@@ -107,7 +107,7 @@ func TestCollection_singleRecord(t *testing.T) {
 	})
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		records := recordsDefinition.Collection(tx)
+		records := records.Tx(tx)
 
 		err := records.Delete(r.ID, true)
 		assertErrorFail(t, "", err, nil)
@@ -122,7 +122,7 @@ func TestCollection_singleRecord(t *testing.T) {
 	})
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		records := recordsDefinition.Collection(tx)
+		records := records.Tx(tx)
 
 		v, err := records.Get(r.ID)
 		assertErrorFail(t, "", err, boltron.ErrNotFound)
@@ -134,7 +134,7 @@ func TestCollection_singleRecord(t *testing.T) {
 	})
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		records := recordsDefinition.Collection(tx)
+		records := records.Tx(tx)
 
 		overwritten, err := records.Save(r.ID, r, false)
 		assertErrorFail(t, "", err, nil)
@@ -159,7 +159,7 @@ func TestCollection_iterate(t *testing.T) {
 
 	t.Run("forward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			records := recordsDefinition.Collection(tx)
+			records := records.Tx(tx)
 
 			var i int
 			next, err := records.Iterate(nil, false, func(id int, r *Record) (bool, error) {
@@ -175,7 +175,7 @@ func TestCollection_iterate(t *testing.T) {
 
 	t.Run("forward partial", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			records := recordsDefinition.Collection(tx)
+			records := records.Tx(tx)
 
 			var i int
 			next, err := records.Iterate(nil, false, func(id int, r *Record) (bool, error) {
@@ -203,7 +203,7 @@ func TestCollection_iterate(t *testing.T) {
 
 	t.Run("backward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			records := recordsDefinition.Collection(tx)
+			records := records.Tx(tx)
 
 			var i int
 			next, err := records.Iterate(nil, true, func(id int, r *Record) (bool, error) {
@@ -219,7 +219,7 @@ func TestCollection_iterate(t *testing.T) {
 
 	t.Run("backward partial", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			records := recordsDefinition.Collection(tx)
+			records := records.Tx(tx)
 
 			var i int
 			next, err := records.Iterate(nil, true, func(id int, r *Record) (bool, error) {
@@ -249,7 +249,7 @@ func TestCollection_iterate(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			records := recordsDefinition.Collection(tx)
+			records := records.Tx(tx)
 
 			var count int
 			next, err := records.Iterate(nil, false, func(_ int, _ *Record) (bool, error) {
@@ -268,7 +268,7 @@ func TestCollection_iterateKeys(t *testing.T) {
 
 	t.Run("forward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			records := recordsDefinition.Collection(tx)
+			records := records.Tx(tx)
 
 			var i int
 			next, err := records.IterateKeys(nil, false, func(id int) (bool, error) {
@@ -283,7 +283,7 @@ func TestCollection_iterateKeys(t *testing.T) {
 
 	t.Run("forward partial", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			records := recordsDefinition.Collection(tx)
+			records := records.Tx(tx)
 
 			var i int
 			next, err := records.IterateKeys(nil, false, func(id int) (bool, error) {
@@ -309,7 +309,7 @@ func TestCollection_iterateKeys(t *testing.T) {
 
 	t.Run("backward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			records := recordsDefinition.Collection(tx)
+			records := records.Tx(tx)
 
 			var i int
 			next, err := records.IterateKeys(nil, true, func(id int) (bool, error) {
@@ -324,7 +324,7 @@ func TestCollection_iterateKeys(t *testing.T) {
 
 	t.Run("backward partial", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			records := recordsDefinition.Collection(tx)
+			records := records.Tx(tx)
 
 			var i int
 			next, err := records.IterateKeys(nil, true, func(id int) (bool, error) {
@@ -352,7 +352,7 @@ func TestCollection_iterateKeys(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			records := recordsDefinition.Collection(tx)
+			records := records.Tx(tx)
 
 			var count int
 			next, err := records.IterateKeys(nil, false, func(_ int) (bool, error) {
@@ -371,7 +371,7 @@ func TestCollection_iterateValues(t *testing.T) {
 
 	t.Run("forward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			records := recordsDefinition.Collection(tx)
+			records := records.Tx(tx)
 
 			var i int
 			next, err := records.IterateValues(nil, false, func(r *Record) (bool, error) {
@@ -386,7 +386,7 @@ func TestCollection_iterateValues(t *testing.T) {
 
 	t.Run("forward partial", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			records := recordsDefinition.Collection(tx)
+			records := records.Tx(tx)
 
 			var i int
 			next, err := records.IterateValues(nil, false, func(r *Record) (bool, error) {
@@ -412,7 +412,7 @@ func TestCollection_iterateValues(t *testing.T) {
 
 	t.Run("backward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			records := recordsDefinition.Collection(tx)
+			records := records.Tx(tx)
 
 			var i int
 			next, err := records.IterateValues(nil, true, func(r *Record) (bool, error) {
@@ -427,7 +427,7 @@ func TestCollection_iterateValues(t *testing.T) {
 
 	t.Run("backward partial", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			records := recordsDefinition.Collection(tx)
+			records := records.Tx(tx)
 
 			var i int
 			next, err := records.IterateValues(nil, true, func(r *Record) (bool, error) {
@@ -455,7 +455,7 @@ func TestCollection_iterateValues(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			records := recordsDefinition.Collection(tx)
+			records := records.Tx(tx)
 
 			var count int
 			next, err := records.IterateValues(nil, false, func(_ *Record) (bool, error) {
@@ -474,7 +474,7 @@ func TestCollection_size(t *testing.T) {
 
 	t.Run("full", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			records := recordsDefinition.Collection(tx)
+			records := records.Tx(tx)
 
 			size, err := records.Size()
 			assertErrorFail(t, "", err, nil)
@@ -486,7 +486,7 @@ func TestCollection_size(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			records := recordsDefinition.Collection(tx)
+			records := records.Tx(tx)
 
 			size, err := records.Size()
 			assertErrorFail(t, "", err, nil)
@@ -500,7 +500,7 @@ func TestCollection_page(t *testing.T) {
 
 	t.Run("forward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			records := recordsDefinition.Collection(tx)
+			records := records.Tx(tx)
 
 			_, _, _, err := records.Page(-1, 3, false)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
@@ -530,7 +530,7 @@ func TestCollection_page(t *testing.T) {
 
 	t.Run("backward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			records := recordsDefinition.Collection(tx)
+			records := records.Tx(tx)
 
 			_, _, _, err := records.Page(-1, 3, true)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
@@ -562,7 +562,7 @@ func TestCollection_page(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			records := recordsDefinition.Collection(tx)
+			records := records.Tx(tx)
 
 			page, totalElements, totalPages, err := records.Page(1, 3, true)
 			assertErrorFail(t, "", err, nil)
@@ -578,7 +578,7 @@ func TestCollection_pageOfKeys(t *testing.T) {
 
 	t.Run("forward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			records := recordsDefinition.Collection(tx)
+			records := records.Tx(tx)
 
 			_, _, _, err := records.PageOfKeys(-1, 3, false)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
@@ -608,7 +608,7 @@ func TestCollection_pageOfKeys(t *testing.T) {
 
 	t.Run("backward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			records := recordsDefinition.Collection(tx)
+			records := records.Tx(tx)
 
 			_, _, _, err := records.PageOfKeys(-1, 3, true)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
@@ -640,7 +640,7 @@ func TestCollection_pageOfKeys(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			records := recordsDefinition.Collection(tx)
+			records := records.Tx(tx)
 
 			page, totalElements, totalPages, err := records.PageOfKeys(1, 3, true)
 			assertErrorFail(t, "", err, nil)
@@ -656,7 +656,7 @@ func TestCollection_pageOfValues(t *testing.T) {
 
 	t.Run("forward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			records := recordsDefinition.Collection(tx)
+			records := records.Tx(tx)
 
 			_, _, _, err := records.PageOfValues(-1, 3, false)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
@@ -686,7 +686,7 @@ func TestCollection_pageOfValues(t *testing.T) {
 
 	t.Run("backward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			records := recordsDefinition.Collection(tx)
+			records := records.Tx(tx)
 
 			_, _, _, err := records.PageOfValues(-1, 3, true)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
@@ -718,7 +718,7 @@ func TestCollection_pageOfValues(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			records := recordsDefinition.Collection(tx)
+			records := records.Tx(tx)
 
 			page, totalElements, totalPages, err := records.PageOfValues(1, 3, true)
 			assertErrorFail(t, "", err, nil)
@@ -735,7 +735,7 @@ func TestCollection_ErrNotFound(t *testing.T) {
 	notFoundID := testRecords[0].ID
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		records := recordsDefinition.Collection(tx)
+		records := records.Tx(tx)
 
 		v, err := records.Get(notFoundID)
 		assertError(t, "", err, boltron.ErrNotFound)
@@ -753,7 +753,7 @@ func TestCollection_ErrNotFound(t *testing.T) {
 	})
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		records := recordsDefinition.Collection(tx)
+		records := records.Tx(tx)
 
 		r := testRecords[1]
 
@@ -763,7 +763,7 @@ func TestCollection_ErrNotFound(t *testing.T) {
 	})
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		records := recordsDefinition.Collection(tx)
+		records := records.Tx(tx)
 
 		v, err := records.Get(notFoundID)
 		assertError(t, "", err, boltron.ErrNotFound)
@@ -778,7 +778,7 @@ func TestCollection_customErrNotFound(t *testing.T) {
 
 	errNotFoundCustom := errors.New("custom not found error")
 
-	recordsDefinitionCustom := boltron.NewCollectionDefinition(
+	recordsCustom := boltron.NewCollection(
 		"records",
 		boltron.IntBase10Encoding,
 		recordEncoding,
@@ -792,7 +792,7 @@ func TestCollection_customErrNotFound(t *testing.T) {
 	notFoundID := testRecords[0].ID
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		records := recordsDefinitionCustom.Collection(tx)
+		records := recordsCustom.Tx(tx)
 
 		v, err := records.Get(notFoundID)
 		assertError(t, "", err, errNotFoundCustom)
@@ -810,7 +810,7 @@ func TestCollection_customErrNotFound(t *testing.T) {
 	})
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		records := recordsDefinitionCustom.Collection(tx)
+		records := recordsCustom.Tx(tx)
 
 		r := testRecords[1]
 
@@ -820,7 +820,7 @@ func TestCollection_customErrNotFound(t *testing.T) {
 	})
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		records := recordsDefinitionCustom.Collection(tx)
+		records := recordsCustom.Tx(tx)
 
 		v, err := records.Get(notFoundID)
 		assertError(t, "", err, errNotFoundCustom)
@@ -835,7 +835,7 @@ func TestCollection_customErrKeyExists(t *testing.T) {
 
 	errKeyExistsCustom := errors.New("custom exists error")
 
-	recordsDefinitionCustom := boltron.NewCollectionDefinition(
+	recordsCustom := boltron.NewCollection(
 		"records",
 		boltron.IntBase10Encoding,
 		recordEncoding,
@@ -849,7 +849,7 @@ func TestCollection_customErrKeyExists(t *testing.T) {
 	r := testRecords[0]
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		records := recordsDefinitionCustom.Collection(tx)
+		records := recordsCustom.Tx(tx)
 
 		overwritten, err := records.Save(r.ID, r, false)
 		assertErrorFail(t, "", err, nil)
@@ -879,7 +879,7 @@ func newRecordsDB(t testing.TB) *bolt.DB {
 	db := newDB(t)
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		records := recordsDefinition.Collection(tx)
+		records := records.Tx(tx)
 
 		for _, r := range testRecords {
 			overwritten, err := records.Save(r.ID, r, false)

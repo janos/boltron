@@ -13,9 +13,9 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-// ListsDefinition defines a set of Lists, each identified by an unique key. All
+// Lists defines a set of Lists, each identified by an unique key. All
 // lists have the same value and order by encodings.
-type ListsDefinition[K, V, O any] struct {
+type Lists[K, V, O any] struct {
 	bucketNameLists   []byte
 	bucketNameIndexes []byte
 	bucketNameValues  []byte
@@ -46,19 +46,19 @@ type ListsOptions struct {
 	ErrValueExists error
 }
 
-// NewListsDefinition constructs a new ListsDefinition with a unique name and
+// NewLists constructs a new Lists with a unique name and
 // key, value and order by encodings.
-func NewListsDefinition[K, V, O any](
+func NewLists[K, V, O any](
 	name string,
 	keyEncoding Encoding[K],
 	valueEncoding Encoding[V],
 	orderByEncoding Encoding[O],
 	o *ListsOptions,
-) *ListsDefinition[K, V, O] {
+) *Lists[K, V, O] {
 	if o == nil {
 		o = new(ListsOptions)
 	}
-	return &ListsDefinition[K, V, O]{
+	return &Lists[K, V, O]{
 		bucketNameLists:   []byte("boltron: lists: " + name + " lists"),
 		bucketNameIndexes: []byte("boltron: lists: " + name + " indexes"),
 		bucketNameValues:  []byte("boltron: lists: " + name + " values"),
@@ -73,29 +73,29 @@ func NewListsDefinition[K, V, O any](
 	}
 }
 
-// Lists returns a Lists instance that has access to the stored data through the
-// bolt transaction.
-func (d *ListsDefinition[K, V, O]) Lists(tx *bolt.Tx) *Lists[K, V, O] {
-	return &Lists[K, V, O]{
-		tx:         tx,
-		definition: d,
+// Tx returns an Lists transaction with access to the stored data
+// through the bolt transaction.
+func (l *Lists[K, V, O]) Tx(tx *bolt.Tx) *ListsTx[K, V, O] {
+	return &ListsTx[K, V, O]{
+		tx:    tx,
+		lists: l,
 	}
 }
 
-// Lists provides methods to access and change a set of Lists.
-type Lists[K, V, O any] struct {
+// ListsTx provides methods to access and change a set of ListsTx.
+type ListsTx[K, V, O any] struct {
 	tx                 *bolt.Tx
 	listsBucketCache   *bolt.Bucket
 	indexesBucketCache *bolt.Bucket
 	valuesBucketCache  *bolt.Bucket
-	definition         *ListsDefinition[K, V, O]
+	lists              *Lists[K, V, O]
 }
 
-func (l *Lists[K, V, O]) listsBucket(create bool) (*bolt.Bucket, error) {
+func (l *ListsTx[K, V, O]) listsBucket(create bool) (*bolt.Bucket, error) {
 	if l.listsBucketCache != nil {
 		return l.listsBucketCache, nil
 	}
-	bucket, err := rootBucket(l.tx, create, l.definition.bucketNameLists)
+	bucket, err := rootBucket(l.tx, create, l.lists.bucketNameLists)
 	if err != nil {
 		return nil, err
 	}
@@ -103,11 +103,11 @@ func (l *Lists[K, V, O]) listsBucket(create bool) (*bolt.Bucket, error) {
 	return bucket, nil
 }
 
-func (l *Lists[K, V, O]) indexesBucket(create bool) (*bolt.Bucket, error) {
+func (l *ListsTx[K, V, O]) indexesBucket(create bool) (*bolt.Bucket, error) {
 	if l.indexesBucketCache != nil {
 		return l.indexesBucketCache, nil
 	}
-	bucket, err := rootBucket(l.tx, create, l.definition.bucketNameIndexes)
+	bucket, err := rootBucket(l.tx, create, l.lists.bucketNameIndexes)
 	if err != nil {
 		return nil, err
 	}
@@ -115,11 +115,11 @@ func (l *Lists[K, V, O]) indexesBucket(create bool) (*bolt.Bucket, error) {
 	return bucket, nil
 }
 
-func (l *Lists[K, V, O]) valuesBucket(create bool) (*bolt.Bucket, error) {
+func (l *ListsTx[K, V, O]) valuesBucket(create bool) (*bolt.Bucket, error) {
 	if l.valuesBucketCache != nil {
 		return l.valuesBucketCache, nil
 	}
-	bucket, err := rootBucket(l.tx, create, l.definition.bucketNameValues)
+	bucket, err := rootBucket(l.tx, create, l.lists.bucketNameValues)
 	if err != nil {
 		return nil, err
 	}
@@ -130,8 +130,8 @@ func (l *Lists[K, V, O]) valuesBucket(create bool) (*bolt.Bucket, error) {
 // List returns a List instance that is associated with the provided key. If the
 // returned value of exists is false, the list still does not exist but it will
 // be created if a value is added to it.
-func (l *Lists[K, V, O]) List(key K) (list *List[V, O], exists bool, err error) {
-	k, err := l.definition.keyEncoding.Encode(key)
+func (l *ListsTx[K, V, O]) List(key K) (list *ListTx[V, O], exists bool, err error) {
+	k, err := l.lists.keyEncoding.Encode(key)
 	if err != nil {
 		return nil, false, fmt.Errorf("encode key: %w", err)
 	}
@@ -141,15 +141,15 @@ func (l *Lists[K, V, O]) List(key K) (list *List[V, O], exists bool, err error) 
 	}
 	exists = listsBucket != nil && listsBucket.Bucket(k) != nil && listsBucket.Bucket(k).Stats().KeyN != 0
 
-	return &List[V, O]{
+	return &ListTx[V, O]{
 		tx: l.tx,
-		definition: &ListDefinition[V, O]{
-			bucketPath:       [][]byte{l.definition.bucketNameLists, k},
-			bucketPathIndex:  [][]byte{l.definition.bucketNameIndexes, k},
-			valueEncoding:    l.definition.valueEncoding,
-			orderByEncoding:  l.definition.orderByEncoding,
-			fillPercent:      l.definition.fillPercent,
-			errValueNotFound: l.definition.errValueNotFound,
+		list: &List[V, O]{
+			bucketPath:       [][]byte{l.lists.bucketNameLists, k},
+			bucketPathIndex:  [][]byte{l.lists.bucketNameIndexes, k},
+			valueEncoding:    l.lists.valueEncoding,
+			orderByEncoding:  l.lists.orderByEncoding,
+			fillPercent:      l.lists.fillPercent,
+			errValueNotFound: l.lists.errValueNotFound,
 			addCallback: func(value, orderBy []byte) error {
 				valuesBucket, err := l.valuesBucket(true)
 				if err != nil {
@@ -157,10 +157,10 @@ func (l *Lists[K, V, O]) List(key K) (list *List[V, O], exists bool, err error) 
 				}
 				valueBucket := valuesBucket.Bucket(value)
 				if valueBucket != nil {
-					if l.definition.uniqueValues {
+					if l.lists.uniqueValues {
 						firstKey, _ := valueBucket.Cursor().First()
 						if firstKey != nil && !bytes.Equal(firstKey, k) {
-							return l.definition.errValueExists
+							return l.lists.errValueExists
 						}
 					}
 				} else {
@@ -178,11 +178,11 @@ func (l *Lists[K, V, O]) List(key K) (list *List[V, O], exists bool, err error) 
 					return fmt.Errorf("values bucket: %w", err)
 				}
 				if valuesBucket == nil {
-					return fmt.Errorf("missing lists values bucket: %w", l.definition.errValueNotFound)
+					return fmt.Errorf("missing lists values bucket: %w", l.lists.errValueNotFound)
 				}
 				valueBucket := valuesBucket.Bucket(value)
 				if valueBucket == nil {
-					return fmt.Errorf("missing value in lists values bucket: %w", l.definition.errValueNotFound)
+					return fmt.Errorf("missing value in lists values bucket: %w", l.lists.errValueNotFound)
 				}
 				if err := valueBucket.Delete(k); err != nil {
 					return fmt.Errorf("delete value from lists values bucket: %w", err)
@@ -200,8 +200,8 @@ func (l *Lists[K, V, O]) List(key K) (list *List[V, O], exists bool, err error) 
 
 // HasList returns true if the List associated with the key already exists in
 // the database.
-func (l *Lists[K, V, O]) HasList(key K) (bool, error) {
-	k, err := l.definition.keyEncoding.Encode(key)
+func (l *ListsTx[K, V, O]) HasList(key K) (bool, error) {
+	k, err := l.lists.keyEncoding.Encode(key)
 	if err != nil {
 		return false, fmt.Errorf("encode key: %w", err)
 	}
@@ -223,8 +223,8 @@ func (l *Lists[K, V, O]) HasList(key K) (bool, error) {
 }
 
 // HasValue returns true if the value already exists in any List.
-func (l *Lists[K, V, O]) HasValue(value V) (bool, error) {
-	v, err := l.definition.valueEncoding.Encode(value)
+func (l *ListsTx[K, V, O]) HasValue(value V) (bool, error) {
+	v, err := l.lists.valueEncoding.Encode(value)
 	if err != nil {
 		return false, fmt.Errorf("encode value: %w", err)
 	}
@@ -247,8 +247,8 @@ func (l *Lists[K, V, O]) HasValue(value V) (bool, error) {
 
 // DeleteList removes the list from the database. If ensure flag is set to true
 // and the value does not exist, configured ErrListNotFound is returned.
-func (l *Lists[K, V, O]) DeleteList(key K, ensure bool) error {
-	k, err := l.definition.keyEncoding.Encode(key)
+func (l *ListsTx[K, V, O]) DeleteList(key K, ensure bool) error {
+	k, err := l.lists.keyEncoding.Encode(key)
 	if err != nil {
 		return fmt.Errorf("encode key: %w", err)
 	}
@@ -259,7 +259,7 @@ func (l *Lists[K, V, O]) DeleteList(key K, ensure bool) error {
 	}
 	if listsBucket == nil {
 		if ensure {
-			return l.definition.errListNotFound
+			return l.lists.errListNotFound
 		}
 		return nil
 	}
@@ -267,7 +267,7 @@ func (l *Lists[K, V, O]) DeleteList(key K, ensure bool) error {
 	listBucket := listsBucket.Bucket(k)
 	if listBucket == nil {
 		if ensure {
-			return l.definition.errListNotFound
+			return l.lists.errListNotFound
 		}
 		return nil
 	}
@@ -325,8 +325,8 @@ func (l *Lists[K, V, O]) DeleteList(key K, ensure bool) error {
 // DeleteValue removes the value from all lists that contain it. If ensure flag
 // is set to true and the value does not exist, configured ErrValueNotFound is
 // returned.
-func (l *Lists[K, V, O]) DeleteValue(value V, ensure bool) error {
-	v, err := l.definition.valueEncoding.Encode(value)
+func (l *ListsTx[K, V, O]) DeleteValue(value V, ensure bool) error {
+	v, err := l.lists.valueEncoding.Encode(value)
 	if err != nil {
 		return fmt.Errorf("encode value: %w", err)
 	}
@@ -337,7 +337,7 @@ func (l *Lists[K, V, O]) DeleteValue(value V, ensure bool) error {
 	}
 	if valuesBucket == nil {
 		if ensure {
-			return l.definition.errValueNotFound
+			return l.lists.errValueNotFound
 		}
 		return nil
 	}
@@ -345,7 +345,7 @@ func (l *Lists[K, V, O]) DeleteValue(value V, ensure bool) error {
 	valueBucket := valuesBucket.Bucket(v)
 	if valueBucket == nil {
 		if ensure {
-			return l.definition.errValueNotFound
+			return l.lists.errValueNotFound
 		}
 		return nil
 	}
@@ -361,11 +361,11 @@ func (l *Lists[K, V, O]) DeleteValue(value V, ensure bool) error {
 	}
 
 	if listsBucket != nil && indexesBucket != nil {
-		list := (&ListDefinition[V, O]{
-			valueEncoding:    l.definition.valueEncoding,
-			orderByEncoding:  l.definition.orderByEncoding,
-			errValueNotFound: l.definition.errValueNotFound,
-		}).List(nil)
+		list := (&List[V, O]{
+			valueEncoding:    l.lists.valueEncoding,
+			orderByEncoding:  l.lists.orderByEncoding,
+			errValueNotFound: l.lists.errValueNotFound,
+		}).Tx(nil)
 
 		if err := valueBucket.ForEach(func(k, _ []byte) error {
 			list.listBucketCache = listsBucket.Bucket(k)
@@ -384,7 +384,7 @@ func (l *Lists[K, V, O]) DeleteValue(value V, ensure bool) error {
 }
 
 // Size returns the number of lists.
-func (l *Lists[K, V, O]) Size() (int, error) {
+func (l *ListsTx[K, V, O]) Size() (int, error) {
 	listsBucket, err := l.listsBucket(false)
 	if err != nil {
 		return 0, fmt.Errorf("lists bucket: %w", err)
@@ -398,7 +398,7 @@ func (l *Lists[K, V, O]) Size() (int, error) {
 // IterateLists iterates over List keys in the lexicographical order of keys. If
 // the callback function f returns false, the iteration stops and the next can
 // be used to continue the iteration.
-func (l *Lists[K, V, O]) IterateLists(start *K, reverse bool, f func(K) (bool, error)) (next *K, err error) {
+func (l *ListsTx[K, V, O]) IterateLists(start *K, reverse bool, f func(K) (bool, error)) (next *K, err error) {
 	listsBucket, err := l.listsBucket(false)
 	if err != nil {
 		return nil, fmt.Errorf("lists bucket: %w", err)
@@ -406,8 +406,8 @@ func (l *Lists[K, V, O]) IterateLists(start *K, reverse bool, f func(K) (bool, e
 	if listsBucket == nil {
 		return nil, nil
 	}
-	return iterateKeys(listsBucket, l.definition.keyEncoding, start, reverse, func(k, _ []byte) (bool, error) {
-		key, err := l.definition.keyEncoding.Decode(k)
+	return iterateKeys(listsBucket, l.lists.keyEncoding, start, reverse, func(k, _ []byte) (bool, error) {
+		key, err := l.lists.keyEncoding.Decode(k)
 		if err != nil {
 			return false, fmt.Errorf("decode key: %w", err)
 		}
@@ -417,7 +417,7 @@ func (l *Lists[K, V, O]) IterateLists(start *K, reverse bool, f func(K) (bool, e
 }
 
 // PageOfLists returns at most a limit of List keys at the provided page number.
-func (l *Lists[K, V, O]) PageOfLists(number, limit int, reverse bool) (s []K, totalElements, pages int, err error) {
+func (l *ListsTx[K, V, O]) PageOfLists(number, limit int, reverse bool) (s []K, totalElements, pages int, err error) {
 	listsBucket, err := l.listsBucket(false)
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("lists bucket: %w", err)
@@ -426,7 +426,7 @@ func (l *Lists[K, V, O]) PageOfLists(number, limit int, reverse bool) (s []K, to
 		return nil, 0, 0, nil
 	}
 	return page(listsBucket, true, number, limit, reverse, func(k, _ []byte) (K, error) {
-		return l.definition.keyEncoding.Decode(k)
+		return l.lists.keyEncoding.Decode(k)
 	})
 }
 
@@ -434,8 +434,8 @@ func (l *Lists[K, V, O]) PageOfLists(number, limit int, reverse bool) (s []K, to
 // in the lexicographical order of keys. If the callback function f returns
 // false, the iteration stops and the next can be used to continue the
 // iteration.
-func (l *Lists[K, V, O]) IterateListsWithValue(value V, start *K, reverse bool, f func(K, O) (bool, error)) (next *K, err error) {
-	v, err := l.definition.valueEncoding.Encode(value)
+func (l *ListsTx[K, V, O]) IterateListsWithValue(value V, start *K, reverse bool, f func(K, O) (bool, error)) (next *K, err error) {
+	v, err := l.lists.valueEncoding.Encode(value)
 	if err != nil {
 		return nil, fmt.Errorf("encode value: %w", err)
 	}
@@ -450,13 +450,13 @@ func (l *Lists[K, V, O]) IterateListsWithValue(value V, start *K, reverse bool, 
 	if valueBucket == nil {
 		return nil, nil
 	}
-	return iterateKeys(valueBucket, l.definition.keyEncoding, start, reverse, func(k, o []byte) (bool, error) {
-		key, err := l.definition.keyEncoding.Decode(k)
+	return iterateKeys(valueBucket, l.lists.keyEncoding, start, reverse, func(k, o []byte) (bool, error) {
+		key, err := l.lists.keyEncoding.Decode(k)
 		if err != nil {
 			return false, fmt.Errorf("decode value: %w", err)
 		}
 
-		orderBy, err := l.definition.orderByEncoding.Decode(o)
+		orderBy, err := l.lists.orderByEncoding.Decode(o)
 		if err != nil {
 			return false, fmt.Errorf("decode value: %w", err)
 		}
@@ -475,8 +475,8 @@ type ListsElement[K, O any] struct {
 
 // PageOfListsWithValue returns at most a limit of List keys and associate order
 // by values that contain the provided value at the provided page number.
-func (l *Lists[K, V, O]) PageOfListsWithValue(value V, number, limit int, reverse bool) (s []ListsElement[K, O], totalElements, pages int, err error) {
-	v, err := l.definition.valueEncoding.Encode(value)
+func (l *ListsTx[K, V, O]) PageOfListsWithValue(value V, number, limit int, reverse bool) (s []ListsElement[K, O], totalElements, pages int, err error) {
+	v, err := l.lists.valueEncoding.Encode(value)
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("encode value: %w", err)
 	}
@@ -492,12 +492,12 @@ func (l *Lists[K, V, O]) PageOfListsWithValue(value V, number, limit int, revers
 		return nil, 0, 0, nil
 	}
 	return page(valueBucket, false, number, limit, reverse, func(k, o []byte) (e ListsElement[K, O], err error) {
-		key, err := l.definition.keyEncoding.Decode(k)
+		key, err := l.lists.keyEncoding.Decode(k)
 		if err != nil {
 			return e, fmt.Errorf("decode value: %w", err)
 		}
 
-		orderBy, err := l.definition.orderByEncoding.Decode(o)
+		orderBy, err := l.lists.orderByEncoding.Decode(o)
 		if err != nil {
 			return e, fmt.Errorf("decode value: %w", err)
 		}
@@ -512,7 +512,7 @@ func (l *Lists[K, V, O]) PageOfListsWithValue(value V, number, limit int, revers
 // IterateValues iterates over all values in the lexicographical order of
 // values. If the callback function f returns false, the iteration stops and the
 // next can be used to continue the iteration.
-func (l *Lists[K, V, O]) IterateValues(start *V, reverse bool, f func(V) (bool, error)) (next *V, err error) {
+func (l *ListsTx[K, V, O]) IterateValues(start *V, reverse bool, f func(V) (bool, error)) (next *V, err error) {
 	valuesBucket, err := l.valuesBucket(false)
 	if err != nil {
 		return nil, fmt.Errorf("values bucket: %w", err)
@@ -520,8 +520,8 @@ func (l *Lists[K, V, O]) IterateValues(start *V, reverse bool, f func(V) (bool, 
 	if valuesBucket == nil {
 		return nil, nil
 	}
-	return iterateKeys(valuesBucket, l.definition.valueEncoding, start, reverse, func(v, _ []byte) (bool, error) {
-		value, err := l.definition.valueEncoding.Decode(v)
+	return iterateKeys(valuesBucket, l.lists.valueEncoding, start, reverse, func(v, _ []byte) (bool, error) {
+		value, err := l.lists.valueEncoding.Decode(v)
 		if err != nil {
 			return false, fmt.Errorf("decode value: %w", err)
 		}
@@ -531,7 +531,7 @@ func (l *Lists[K, V, O]) IterateValues(start *V, reverse bool, f func(V) (bool, 
 }
 
 // PageOfValues returns at most a limit of values at the provided page number.
-func (l *Lists[K, V, O]) PageOfValues(number, limit int, reverse bool) (s []V, totalElements, pages int, err error) {
+func (l *ListsTx[K, V, O]) PageOfValues(number, limit int, reverse bool) (s []V, totalElements, pages int, err error) {
 	valuesBucket, err := l.valuesBucket(false)
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("values bucket: %w", err)
@@ -540,6 +540,6 @@ func (l *Lists[K, V, O]) PageOfValues(number, limit int, reverse bool) (s []V, t
 		return nil, 0, 0, nil
 	}
 	return page(valuesBucket, true, number, limit, reverse, func(v, _ []byte) (V, error) {
-		return l.definition.valueEncoding.Decode(v)
+		return l.lists.valueEncoding.Decode(v)
 	})
 }

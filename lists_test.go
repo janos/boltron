@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	projectDependenciesDefinition = boltron.NewListsDefinition(
+	projectDependencies = boltron.NewLists(
 		"project dependencies",
 		boltron.StringEncoding,
 		boltron.Uint64Base36Encoding, // dependency id in another collection
@@ -79,7 +79,7 @@ func TestLists(t *testing.T) {
 	db := projectsDependenciesDB(t)
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		projectDependencies := projectDependenciesDefinition.Lists(tx)
+		projectDependencies := projectDependencies.Tx(tx)
 
 		for _, d := range testProjectDependencies {
 			has, err := projectDependencies.HasList(d.ProjectName)
@@ -111,7 +111,7 @@ func TestLists(t *testing.T) {
 	deletedValue := uint64(121)
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		projectDependencies := projectDependenciesDefinition.Lists(tx)
+		projectDependencies := projectDependencies.Tx(tx)
 
 		err := projectDependencies.DeleteValue(120, true)
 		assertErrorFail(t, "", err, boltron.ErrNotFound)
@@ -123,7 +123,7 @@ func TestLists(t *testing.T) {
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
 		deletedValueFromList := uint64(125)
 
-		projectDependencies := projectDependenciesDefinition.Lists(tx)
+		projectDependencies := projectDependencies.Tx(tx)
 
 		list, exists, err := projectDependencies.List("resenje.org/schulze")
 		assertErrorFail(t, "", err, nil)
@@ -153,7 +153,7 @@ func TestLists(t *testing.T) {
 	deletedValueFromListBoltron := uint64(382)
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		projectDependencies := projectDependenciesDefinition.Lists(tx)
+		projectDependencies := projectDependencies.Tx(tx)
 
 		list, exists, err := projectDependencies.List("resenje.org/boltron")
 		assertErrorFail(t, "", err, nil)
@@ -181,7 +181,7 @@ func TestLists(t *testing.T) {
 	})
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		projectDependencies := projectDependenciesDefinition.Lists(tx)
+		projectDependencies := projectDependencies.Tx(tx)
 
 		for _, d := range testProjectDependenciesLists {
 			has, err := projectDependencies.HasList(d)
@@ -211,7 +211,7 @@ func TestLists(t *testing.T) {
 	deletedList := "resenje.org/schulze"
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		projectDependencies := projectDependenciesDefinition.Lists(tx)
+		projectDependencies := projectDependencies.Tx(tx)
 
 		err := projectDependencies.DeleteList("resenje.org/missing", true)
 		assertErrorFail(t, "", err, boltron.ErrNotFound)
@@ -221,7 +221,7 @@ func TestLists(t *testing.T) {
 	})
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		projectDependencies := projectDependenciesDefinition.Lists(tx)
+		projectDependencies := projectDependencies.Tx(tx)
 
 		for _, d := range testProjectDependencies {
 			has, err := projectDependencies.HasList(d.ProjectName)
@@ -244,7 +244,7 @@ func TestLists_iterateLists(t *testing.T) {
 
 	t.Run("forward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			projectDependencies := projectDependenciesDefinition.Lists(tx)
+			projectDependencies := projectDependencies.Tx(tx)
 
 			var i int
 			next, err := projectDependencies.IterateLists(nil, false, func(v string) (bool, error) {
@@ -260,7 +260,7 @@ func TestLists_iterateLists(t *testing.T) {
 
 	t.Run("forward partial", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			projectDependencies := projectDependenciesDefinition.Lists(tx)
+			projectDependencies := projectDependencies.Tx(tx)
 
 			var i int
 			next, err := projectDependencies.IterateLists(nil, false, func(v string) (bool, error) {
@@ -287,7 +287,7 @@ func TestLists_iterateLists(t *testing.T) {
 
 	t.Run("backward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			projectDependencies := projectDependenciesDefinition.Lists(tx)
+			projectDependencies := projectDependencies.Tx(tx)
 
 			var i int
 			next, err := projectDependencies.IterateLists(nil, true, func(v string) (bool, error) {
@@ -303,7 +303,7 @@ func TestLists_iterateLists(t *testing.T) {
 
 	t.Run("backward partial", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			projectDependencies := projectDependenciesDefinition.Lists(tx)
+			projectDependencies := projectDependencies.Tx(tx)
 
 			var i int
 			next, err := projectDependencies.IterateLists(nil, true, func(v string) (bool, error) {
@@ -332,7 +332,7 @@ func TestLists_iterateLists(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			projectDependencies := projectDependenciesDefinition.Lists(tx)
+			projectDependencies := projectDependencies.Tx(tx)
 
 			var count int
 			next, err := projectDependencies.IterateLists(nil, false, func(_ string) (bool, error) {
@@ -351,7 +351,7 @@ func TestLists_size(t *testing.T) {
 
 	t.Run("full", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			projectDependencies := projectDependenciesDefinition.Lists(tx)
+			projectDependencies := projectDependencies.Tx(tx)
 
 			size, err := projectDependencies.Size()
 			assertErrorFail(t, "", err, nil)
@@ -363,7 +363,7 @@ func TestLists_size(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			projectDependencies := projectDependenciesDefinition.Lists(tx)
+			projectDependencies := projectDependencies.Tx(tx)
 
 			size, err := projectDependencies.Size()
 			assertErrorFail(t, "", err, nil)
@@ -377,7 +377,7 @@ func TestLists_pageOfLists(t *testing.T) {
 
 	t.Run("forward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			projectDependencies := projectDependenciesDefinition.Lists(tx)
+			projectDependencies := projectDependencies.Tx(tx)
 
 			_, _, _, err := projectDependencies.PageOfLists(-1, 3, false)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
@@ -401,7 +401,7 @@ func TestLists_pageOfLists(t *testing.T) {
 
 	t.Run("backward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			projectDependencies := projectDependenciesDefinition.Lists(tx)
+			projectDependencies := projectDependencies.Tx(tx)
 
 			_, _, _, err := projectDependencies.PageOfLists(-1, 3, false)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
@@ -427,7 +427,7 @@ func TestLists_pageOfLists(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			projectDependencies := projectDependenciesDefinition.Lists(tx)
+			projectDependencies := projectDependencies.Tx(tx)
 
 			page, totalElements, totalPages, err := projectDependencies.PageOfLists(1, 3, true)
 			assertErrorFail(t, "", err, nil)
@@ -443,7 +443,7 @@ func TestLists_iterateListsWithValue(t *testing.T) {
 
 	t.Run("forward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			projectDependencies := projectDependenciesDefinition.Lists(tx)
+			projectDependencies := projectDependencies.Tx(tx)
 
 			var i int
 			next, err := projectDependencies.IterateListsWithValue(125, nil, false, func(v string, o time.Time) (bool, error) {
@@ -460,7 +460,7 @@ func TestLists_iterateListsWithValue(t *testing.T) {
 
 	t.Run("forward partial", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			projectDependencies := projectDependenciesDefinition.Lists(tx)
+			projectDependencies := projectDependencies.Tx(tx)
 
 			var i int
 			next, err := projectDependencies.IterateListsWithValue(125, nil, false, func(v string, o time.Time) (bool, error) {
@@ -489,7 +489,7 @@ func TestLists_iterateListsWithValue(t *testing.T) {
 
 	t.Run("backward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			projectDependencies := projectDependenciesDefinition.Lists(tx)
+			projectDependencies := projectDependencies.Tx(tx)
 
 			var i int
 			next, err := projectDependencies.IterateListsWithValue(125, nil, true, func(v string, o time.Time) (bool, error) {
@@ -506,7 +506,7 @@ func TestLists_iterateListsWithValue(t *testing.T) {
 
 	t.Run("backward partial", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			projectDependencies := projectDependenciesDefinition.Lists(tx)
+			projectDependencies := projectDependencies.Tx(tx)
 
 			var i int
 			next, err := projectDependencies.IterateListsWithValue(125, nil, true, func(v string, o time.Time) (bool, error) {
@@ -537,7 +537,7 @@ func TestLists_iterateListsWithValue(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			projectDependencies := projectDependenciesDefinition.Lists(tx)
+			projectDependencies := projectDependencies.Tx(tx)
 
 			var count int
 			next, err := projectDependencies.IterateListsWithValue(125, nil, false, func(_ string, _ time.Time) (bool, error) {
@@ -550,7 +550,7 @@ func TestLists_iterateListsWithValue(t *testing.T) {
 		})
 
 		dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-			projectDependencies := projectDependenciesDefinition.Lists(tx)
+			projectDependencies := projectDependencies.Tx(tx)
 
 			list, exists, err := projectDependencies.List("resenje.org/daemon")
 			assertErrorFail(t, "", err, nil)
@@ -561,7 +561,7 @@ func TestLists_iterateListsWithValue(t *testing.T) {
 		})
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			projectDependencies := projectDependenciesDefinition.Lists(tx)
+			projectDependencies := projectDependencies.Tx(tx)
 
 			var count int
 			next, err := projectDependencies.IterateListsWithValue(125, nil, false, func(_ string, _ time.Time) (bool, error) {
@@ -580,7 +580,7 @@ func TestLists_pageOfListsWithValue(t *testing.T) {
 
 	t.Run("forward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			projectDependencies := projectDependenciesDefinition.Lists(tx)
+			projectDependencies := projectDependencies.Tx(tx)
 
 			_, _, _, err := projectDependencies.PageOfListsWithValue(125, -1, 3, false)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
@@ -604,7 +604,7 @@ func TestLists_pageOfListsWithValue(t *testing.T) {
 
 	t.Run("backward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			projectDependencies := projectDependenciesDefinition.Lists(tx)
+			projectDependencies := projectDependencies.Tx(tx)
 
 			_, _, _, err := projectDependencies.PageOfListsWithValue(125, -1, 3, false)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
@@ -630,7 +630,7 @@ func TestLists_pageOfListsWithValue(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			projectDependencies := projectDependenciesDefinition.Lists(tx)
+			projectDependencies := projectDependencies.Tx(tx)
 
 			page, totalElements, totalPages, err := projectDependencies.PageOfListsWithValue(125, 1, 3, true)
 			assertErrorFail(t, "", err, nil)
@@ -640,7 +640,7 @@ func TestLists_pageOfListsWithValue(t *testing.T) {
 		})
 
 		dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-			projectDependencies := projectDependenciesDefinition.Lists(tx)
+			projectDependencies := projectDependencies.Tx(tx)
 
 			list, exists, err := projectDependencies.List("resenje.org/daemon")
 			assertErrorFail(t, "", err, nil)
@@ -651,7 +651,7 @@ func TestLists_pageOfListsWithValue(t *testing.T) {
 		})
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			projectDependencies := projectDependenciesDefinition.Lists(tx)
+			projectDependencies := projectDependencies.Tx(tx)
 
 			page, totalElements, totalPages, err := projectDependencies.PageOfListsWithValue(125, 1, 3, true)
 			assertErrorFail(t, "", err, nil)
@@ -667,7 +667,7 @@ func TestLists_iterateValues(t *testing.T) {
 
 	t.Run("forward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			projectDependencies := projectDependenciesDefinition.Lists(tx)
+			projectDependencies := projectDependencies.Tx(tx)
 
 			var i int
 			next, err := projectDependencies.IterateValues(nil, false, func(v uint64) (bool, error) {
@@ -683,7 +683,7 @@ func TestLists_iterateValues(t *testing.T) {
 
 	t.Run("forward partial", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			projectDependencies := projectDependenciesDefinition.Lists(tx)
+			projectDependencies := projectDependencies.Tx(tx)
 
 			var i int
 			next, err := projectDependencies.IterateValues(nil, false, func(v uint64) (bool, error) {
@@ -710,7 +710,7 @@ func TestLists_iterateValues(t *testing.T) {
 
 	t.Run("backward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			projectDependencies := projectDependenciesDefinition.Lists(tx)
+			projectDependencies := projectDependencies.Tx(tx)
 
 			var i int
 			next, err := projectDependencies.IterateValues(nil, true, func(v uint64) (bool, error) {
@@ -726,7 +726,7 @@ func TestLists_iterateValues(t *testing.T) {
 
 	t.Run("backward partial", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			projectDependencies := projectDependenciesDefinition.Lists(tx)
+			projectDependencies := projectDependencies.Tx(tx)
 
 			var i int
 			next, err := projectDependencies.IterateValues(nil, true, func(v uint64) (bool, error) {
@@ -755,7 +755,7 @@ func TestLists_iterateValues(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			projectDependencies := projectDependenciesDefinition.Lists(tx)
+			projectDependencies := projectDependencies.Tx(tx)
 
 			var count int
 			next, err := projectDependencies.IterateValues(nil, false, func(_ uint64) (bool, error) {
@@ -774,7 +774,7 @@ func TestLists_pageOfValues(t *testing.T) {
 
 	t.Run("forward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			projectDependencies := projectDependenciesDefinition.Lists(tx)
+			projectDependencies := projectDependencies.Tx(tx)
 
 			_, _, _, err := projectDependencies.PageOfValues(-1, 3, false)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
@@ -804,7 +804,7 @@ func TestLists_pageOfValues(t *testing.T) {
 
 	t.Run("backward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			projectDependencies := projectDependenciesDefinition.Lists(tx)
+			projectDependencies := projectDependencies.Tx(tx)
 
 			_, _, _, err := projectDependencies.PageOfValues(-1, 3, false)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
@@ -836,7 +836,7 @@ func TestLists_pageOfValues(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			projectDependencies := projectDependenciesDefinition.Lists(tx)
+			projectDependencies := projectDependencies.Tx(tx)
 
 			page, totalElements, totalPages, err := projectDependencies.PageOfValues(1, 3, true)
 			assertErrorFail(t, "", err, nil)
@@ -851,7 +851,7 @@ func TestLists_ErrListNotFound_and_ErrValueNotFound(t *testing.T) {
 	db := newDB(t)
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		projectDependencies := projectDependenciesDefinition.Lists(tx)
+		projectDependencies := projectDependencies.Tx(tx)
 
 		_, exists, err := projectDependencies.List("missing")
 		assertError(t, "", err, nil)
@@ -879,7 +879,7 @@ func TestLists_ErrListNotFound_and_ErrValueNotFound(t *testing.T) {
 	})
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		projectDependencies := projectDependenciesDefinition.Lists(tx)
+		projectDependencies := projectDependencies.Tx(tx)
 
 		list, exists, err := projectDependencies.List("one")
 		assertErrorFail(t, "", err, nil)
@@ -890,7 +890,7 @@ func TestLists_ErrListNotFound_and_ErrValueNotFound(t *testing.T) {
 	})
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		projectDependencies := projectDependenciesDefinition.Lists(tx)
+		projectDependencies := projectDependencies.Tx(tx)
 
 		_, exists, err := projectDependencies.List("missing")
 		assertError(t, "", err, nil)
@@ -923,7 +923,7 @@ func TestLists_customErrListNotFound_and_customErrValueNotFound(t *testing.T) {
 	errListNotFoundCustom := errors.New("custom list not found error")
 	errValueNotFoundCustom := errors.New("custom value not found error")
 
-	customProjectDependenciesDefinition := boltron.NewListsDefinition(
+	customProjectDependencies := boltron.NewLists(
 		"project dependencies",
 		boltron.StringEncoding,
 		boltron.Uint64Base36Encoding, // dependency id in another collection
@@ -937,7 +937,7 @@ func TestLists_customErrListNotFound_and_customErrValueNotFound(t *testing.T) {
 	db := newDB(t)
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		projectDependencies := customProjectDependenciesDefinition.Lists(tx)
+		projectDependencies := customProjectDependencies.Tx(tx)
 
 		_, exists, err := projectDependencies.List("missing")
 		assertError(t, "", err, nil)
@@ -965,7 +965,7 @@ func TestLists_customErrListNotFound_and_customErrValueNotFound(t *testing.T) {
 	})
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		projectDependencies := customProjectDependenciesDefinition.Lists(tx)
+		projectDependencies := customProjectDependencies.Tx(tx)
 
 		list, exists, err := projectDependencies.List("one")
 		assertErrorFail(t, "", err, nil)
@@ -976,7 +976,7 @@ func TestLists_customErrListNotFound_and_customErrValueNotFound(t *testing.T) {
 	})
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		projectDependencies := customProjectDependenciesDefinition.Lists(tx)
+		projectDependencies := customProjectDependencies.Tx(tx)
 
 		_, exists, err := projectDependencies.List("missing")
 		assertError(t, "", err, nil)
@@ -1005,7 +1005,7 @@ func TestLists_customErrListNotFound_and_customErrValueNotFound(t *testing.T) {
 }
 
 func TestLists_uniqueValues(t *testing.T) {
-	customProjectDependenciesDefinition := boltron.NewListsDefinition(
+	customProjectDependencies := boltron.NewLists(
 		"project dependencies",
 		boltron.StringEncoding,
 		boltron.Uint64Base36Encoding, // dependency id in another collection
@@ -1018,7 +1018,7 @@ func TestLists_uniqueValues(t *testing.T) {
 	db := newDB(t)
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		projectDependencies := customProjectDependenciesDefinition.Lists(tx)
+		projectDependencies := customProjectDependencies.Tx(tx)
 
 		boltronProjectDependencies, exists, err := projectDependencies.List("resenje.org/boltron")
 		assertErrorFail(t, "", err, nil)
@@ -1040,7 +1040,7 @@ func TestLists_uniqueValues_customErrValueExists(t *testing.T) {
 
 	errValueExistsCustom := errors.New("custom value exists error")
 
-	customProjectDependenciesDefinition := boltron.NewListsDefinition(
+	customProjectDependencies := boltron.NewLists(
 		"project dependencies",
 		boltron.StringEncoding,
 		boltron.Uint64Base36Encoding, // dependency id in another collection
@@ -1054,7 +1054,7 @@ func TestLists_uniqueValues_customErrValueExists(t *testing.T) {
 	db := newDB(t)
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		projectDependencies := customProjectDependenciesDefinition.Lists(tx)
+		projectDependencies := customProjectDependencies.Tx(tx)
 
 		boltronProjectDependencies, exists, err := projectDependencies.List("resenje.org/boltron")
 		assertErrorFail(t, "", err, nil)
@@ -1078,7 +1078,7 @@ func projectsDependenciesDB(t testing.TB) *bolt.DB {
 	db := newDB(t)
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		projectDependencies := projectDependenciesDefinition.Lists(tx)
+		projectDependencies := projectDependencies.Tx(tx)
 
 		boltronProjectDependencies, exists, err := projectDependencies.List("resenje.org/boltron")
 		assertErrorFail(t, "", err, nil)

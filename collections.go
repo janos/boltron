@@ -13,9 +13,9 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-// CollectionsDefinition defines a set of Collections, each identified by an
+// Collections defines a set of Collections, each identified by an
 // unique collection key. All collections have the same key and value encodings.
-type CollectionsDefinition[C, K, V any] struct {
+type Collections[C, K, V any] struct {
 	bucketNameCollections []byte
 	bucketNameKeys        []byte
 	collectionKeyEncoding Encoding[C]
@@ -46,19 +46,19 @@ type CollectionsOptions struct {
 	ErrKeyExists error
 }
 
-// NewCollectionsDefinition constructs a new CollectionsDefinition with a unique
+// NewCollections constructs a new Collections with a unique
 // name and collection key, key and value encodings.
-func NewCollectionsDefinition[C, K, V any](
+func NewCollections[C, K, V any](
 	name string,
 	collectionKeyEncoding Encoding[C],
 	keyEncoding Encoding[K],
 	valueEncoding Encoding[V],
 	o *CollectionsOptions,
-) *CollectionsDefinition[C, K, V] {
+) *Collections[C, K, V] {
 	if o == nil {
 		o = new(CollectionsOptions)
 	}
-	return &CollectionsDefinition[C, K, V]{
+	return &Collections[C, K, V]{
 		bucketNameCollections: []byte("boltron: collections: " + name + " collections"),
 		bucketNameKeys:        []byte("boltron: collections: " + name + " keys"),
 		collectionKeyEncoding: collectionKeyEncoding,
@@ -72,28 +72,28 @@ func NewCollectionsDefinition[C, K, V any](
 	}
 }
 
-// Collections returns a Collections instance that has access to the stored data
+// Tx returns an Collections transaction with access to the stored data
 // through the bolt transaction.
-func (d *CollectionsDefinition[C, K, V]) Collections(tx *bolt.Tx) *Collections[C, K, V] {
-	return &Collections[C, K, V]{
-		tx:         tx,
-		definition: d,
+func (c *Collections[C, K, V]) Tx(tx *bolt.Tx) *CollectionsTx[C, K, V] {
+	return &CollectionsTx[C, K, V]{
+		tx:          tx,
+		collections: c,
 	}
 }
 
-// Collections provides methods to access and change a set of Collections.
-type Collections[C, K, V any] struct {
+// CollectionsTx provides methods to access and change a set of CollectionsTx.
+type CollectionsTx[C, K, V any] struct {
 	tx                     *bolt.Tx
 	collectionsBucketCache *bolt.Bucket
 	keysBucketCache        *bolt.Bucket
-	definition             *CollectionsDefinition[C, K, V]
+	collections            *Collections[C, K, V]
 }
 
-func (c *Collections[C, K, V]) collectionsBucket(create bool) (*bolt.Bucket, error) {
+func (c *CollectionsTx[C, K, V]) collectionsBucket(create bool) (*bolt.Bucket, error) {
 	if c.collectionsBucketCache != nil {
 		return c.collectionsBucketCache, nil
 	}
-	bucket, err := rootBucket(c.tx, create, c.definition.bucketNameCollections)
+	bucket, err := rootBucket(c.tx, create, c.collections.bucketNameCollections)
 	if err != nil {
 		return nil, err
 	}
@@ -101,11 +101,11 @@ func (c *Collections[C, K, V]) collectionsBucket(create bool) (*bolt.Bucket, err
 	return bucket, nil
 }
 
-func (c *Collections[C, K, V]) keysBucket(create bool) (*bolt.Bucket, error) {
+func (c *CollectionsTx[C, K, V]) keysBucket(create bool) (*bolt.Bucket, error) {
 	if c.keysBucketCache != nil {
 		return c.keysBucketCache, nil
 	}
-	bucket, err := rootBucket(c.tx, create, c.definition.bucketNameKeys)
+	bucket, err := rootBucket(c.tx, create, c.collections.bucketNameKeys)
 	if err != nil {
 		return nil, err
 	}
@@ -117,8 +117,8 @@ func (c *Collections[C, K, V]) keysBucket(create bool) (*bolt.Bucket, error) {
 // provided collection key. If the returned value of exists is false, the
 // collection still does not exist but it will be created if a key/value pair is
 // saved to it.
-func (c *Collections[C, K, V]) Collection(key C) (collection *Collection[K, V], exists bool, err error) {
-	k, err := c.definition.collectionKeyEncoding.Encode(key)
+func (c *CollectionsTx[C, K, V]) Collection(key C) (collection *CollectionTx[K, V], exists bool, err error) {
+	k, err := c.collections.collectionKeyEncoding.Encode(key)
 	if err != nil {
 		return nil, false, fmt.Errorf("encode collection key: %w", err)
 	}
@@ -128,14 +128,14 @@ func (c *Collections[C, K, V]) Collection(key C) (collection *Collection[K, V], 
 	}
 	exists = collectionsBucket != nil && collectionsBucket.Bucket(k) != nil
 
-	return &Collection[K, V]{
+	return &CollectionTx[K, V]{
 		tx: c.tx,
-		definition: &CollectionDefinition[K, V]{
-			bucketPath:    [][]byte{c.definition.bucketNameCollections, k},
-			keyEncoding:   c.definition.keyEncoding,
-			valueEncoding: c.definition.valueEncoding,
-			fillPercent:   c.definition.fillPercent,
-			errNotFound:   c.definition.errKeyNotFound,
+		collection: &Collection[K, V]{
+			bucketPath:    [][]byte{c.collections.bucketNameCollections, k},
+			keyEncoding:   c.collections.keyEncoding,
+			valueEncoding: c.collections.valueEncoding,
+			fillPercent:   c.collections.fillPercent,
+			errNotFound:   c.collections.errKeyNotFound,
 			saveCallback: func(key []byte) error {
 				keysBucket, err := c.keysBucket(true)
 				if err != nil {
@@ -143,10 +143,10 @@ func (c *Collections[C, K, V]) Collection(key C) (collection *Collection[K, V], 
 				}
 				keyBucket := keysBucket.Bucket(key)
 				if keyBucket != nil {
-					if c.definition.uniqueKeys {
+					if c.collections.uniqueKeys {
 						firstKey, _ := keyBucket.Cursor().First()
 						if firstKey != nil && !bytes.Equal(firstKey, k) {
-							return c.definition.errKeyExists
+							return c.collections.errKeyExists
 						}
 					}
 				} else {
@@ -164,11 +164,11 @@ func (c *Collections[C, K, V]) Collection(key C) (collection *Collection[K, V], 
 					return fmt.Errorf("keys bucket: %w", err)
 				}
 				if keysBucket == nil {
-					return fmt.Errorf("missing collections keys bucket: %w", c.definition.errKeyNotFound)
+					return fmt.Errorf("missing collections keys bucket: %w", c.collections.errKeyNotFound)
 				}
 				keyBucket := keysBucket.Bucket(key)
 				if keyBucket == nil {
-					return fmt.Errorf("missing key in collections keys bucket: %w", c.definition.errKeyNotFound)
+					return fmt.Errorf("missing key in collections keys bucket: %w", c.collections.errKeyNotFound)
 				}
 				if err := keyBucket.Delete(k); err != nil {
 					return fmt.Errorf("delete value from lists values bucket: %w", err)
@@ -186,8 +186,8 @@ func (c *Collections[C, K, V]) Collection(key C) (collection *Collection[K, V], 
 
 // HasCollection returns true if the Collection associated with the collection
 // key already exists in the database.
-func (c *Collections[C, K, V]) HasCollection(key C) (bool, error) {
-	ck, err := c.definition.collectionKeyEncoding.Encode(key)
+func (c *CollectionsTx[C, K, V]) HasCollection(key C) (bool, error) {
+	ck, err := c.collections.collectionKeyEncoding.Encode(key)
 	if err != nil {
 		return false, fmt.Errorf("encode collection key: %w", err)
 	}
@@ -209,8 +209,8 @@ func (c *Collections[C, K, V]) HasCollection(key C) (bool, error) {
 }
 
 // HasKey returns true if the key already exists in any Collection.
-func (c *Collections[C, K, V]) HasKey(key K) (bool, error) {
-	k, err := c.definition.keyEncoding.Encode(key)
+func (c *CollectionsTx[C, K, V]) HasKey(key K) (bool, error) {
+	k, err := c.collections.keyEncoding.Encode(key)
 	if err != nil {
 		return false, fmt.Errorf("encode key: %w", err)
 	}
@@ -234,8 +234,8 @@ func (c *Collections[C, K, V]) HasKey(key K) (bool, error) {
 // DeleteCollection removes the collection from the database. If ensure flag is
 // set to true and the value does not exist, configured ErrCollectionNotFound is
 // returned.
-func (c *Collections[C, K, V]) DeleteCollection(key C, ensure bool) error {
-	ck, err := c.definition.collectionKeyEncoding.Encode(key)
+func (c *CollectionsTx[C, K, V]) DeleteCollection(key C, ensure bool) error {
+	ck, err := c.collections.collectionKeyEncoding.Encode(key)
 	if err != nil {
 		return fmt.Errorf("encode collection key: %w", err)
 	}
@@ -246,7 +246,7 @@ func (c *Collections[C, K, V]) DeleteCollection(key C, ensure bool) error {
 	}
 	if collectionsBucket == nil {
 		if ensure {
-			return c.definition.errCollectionNotFound
+			return c.collections.errCollectionNotFound
 		}
 		return nil
 	}
@@ -254,7 +254,7 @@ func (c *Collections[C, K, V]) DeleteCollection(key C, ensure bool) error {
 	collectionBucket := collectionsBucket.Bucket(ck)
 	if collectionBucket == nil {
 		if ensure {
-			return c.definition.errCollectionNotFound
+			return c.collections.errCollectionNotFound
 		}
 		return nil
 	}
@@ -298,8 +298,8 @@ func (c *Collections[C, K, V]) DeleteCollection(key C, ensure bool) error {
 // DeleteKey removes the key from all collections that contain it. If ensure
 // flag is set to true and the key does not exist, configured ErrKeyNotFound is
 // returned.
-func (c *Collections[C, K, V]) DeleteKey(key K, ensure bool) error {
-	k, err := c.definition.keyEncoding.Encode(key)
+func (c *CollectionsTx[C, K, V]) DeleteKey(key K, ensure bool) error {
+	k, err := c.collections.keyEncoding.Encode(key)
 	if err != nil {
 		return fmt.Errorf("encode key: %w", err)
 	}
@@ -310,7 +310,7 @@ func (c *Collections[C, K, V]) DeleteKey(key K, ensure bool) error {
 	}
 	if keysBucket == nil {
 		if ensure {
-			return c.definition.errKeyNotFound
+			return c.collections.errKeyNotFound
 		}
 		return nil
 	}
@@ -318,7 +318,7 @@ func (c *Collections[C, K, V]) DeleteKey(key K, ensure bool) error {
 	keyBucket := keysBucket.Bucket(k)
 	if keyBucket == nil {
 		if ensure {
-			return c.definition.errKeyNotFound
+			return c.collections.errKeyNotFound
 		}
 		return nil
 	}
@@ -329,12 +329,12 @@ func (c *Collections[C, K, V]) DeleteKey(key K, ensure bool) error {
 	}
 
 	if collectionsBucket != nil {
-		collection := (&CollectionDefinition[K, V]{
-			keyEncoding:   c.definition.keyEncoding,
-			valueEncoding: c.definition.valueEncoding,
-			errNotFound:   c.definition.errKeyNotFound,
-			errKeyExists:  c.definition.errKeyExists,
-		}).Collection(nil)
+		collection := (&Collection[K, V]{
+			keyEncoding:   c.collections.keyEncoding,
+			valueEncoding: c.collections.valueEncoding,
+			errNotFound:   c.collections.errKeyNotFound,
+			errKeyExists:  c.collections.errKeyExists,
+		}).Tx(nil)
 
 		if err := keyBucket.ForEach(func(k, _ []byte) error {
 			collection.bucketCache = collectionsBucket.Bucket(k)
@@ -352,7 +352,7 @@ func (c *Collections[C, K, V]) DeleteKey(key K, ensure bool) error {
 }
 
 // Size returns the number of collections.
-func (c *Collections[C, K, V]) Size() (int, error) {
+func (c *CollectionsTx[C, K, V]) Size() (int, error) {
 	collectionsBucket, err := c.collectionsBucket(false)
 	if err != nil {
 		return 0, fmt.Errorf("collections bucket: %w", err)
@@ -366,7 +366,7 @@ func (c *Collections[C, K, V]) Size() (int, error) {
 // IterateCollections iterates over collection keys in the lexicographical order
 // of keys. If the callback function f returns false, the iteration stops and
 // the next can be used to continue the iteration.
-func (c *Collections[C, K, V]) IterateCollections(start *C, reverse bool, f func(C) (bool, error)) (next *C, err error) {
+func (c *CollectionsTx[C, K, V]) IterateCollections(start *C, reverse bool, f func(C) (bool, error)) (next *C, err error) {
 	collectionsBucket, err := c.collectionsBucket(false)
 	if err != nil {
 		return nil, fmt.Errorf("collections bucket: %w", err)
@@ -374,8 +374,8 @@ func (c *Collections[C, K, V]) IterateCollections(start *C, reverse bool, f func
 	if collectionsBucket == nil {
 		return nil, nil
 	}
-	return iterateKeys(collectionsBucket, c.definition.collectionKeyEncoding, start, reverse, func(k, _ []byte) (bool, error) {
-		key, err := c.definition.collectionKeyEncoding.Decode(k)
+	return iterateKeys(collectionsBucket, c.collections.collectionKeyEncoding, start, reverse, func(k, _ []byte) (bool, error) {
+		key, err := c.collections.collectionKeyEncoding.Decode(k)
 		if err != nil {
 			return false, fmt.Errorf("decode collection key: %w", err)
 		}
@@ -386,7 +386,7 @@ func (c *Collections[C, K, V]) IterateCollections(start *C, reverse bool, f func
 
 // PageOfCollections returns at most a limit of collection keys at the provided
 // page number.
-func (c *Collections[C, K, V]) PageOfCollections(number, limit int, reverse bool) (s []C, totalElements, pages int, err error) {
+func (c *CollectionsTx[C, K, V]) PageOfCollections(number, limit int, reverse bool) (s []C, totalElements, pages int, err error) {
 	collectionsBucket, err := c.collectionsBucket(false)
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("collections bucket: %w", err)
@@ -395,7 +395,7 @@ func (c *Collections[C, K, V]) PageOfCollections(number, limit int, reverse bool
 		return nil, 0, 0, nil
 	}
 	return page(collectionsBucket, true, number, limit, reverse, func(k, _ []byte) (C, error) {
-		return c.definition.collectionKeyEncoding.Decode(k)
+		return c.collections.collectionKeyEncoding.Decode(k)
 	})
 }
 
@@ -403,8 +403,8 @@ func (c *Collections[C, K, V]) PageOfCollections(number, limit int, reverse bool
 // provided key in the lexicographical order of collection keys. If the callback
 // function f returns false, the iteration stops and the next can be used to
 // continue the iteration.
-func (c *Collections[C, K, V]) IterateCollectionsWithKey(key K, start *C, reverse bool, f func(C) (bool, error)) (next *C, err error) {
-	k, err := c.definition.keyEncoding.Encode(key)
+func (c *CollectionsTx[C, K, V]) IterateCollectionsWithKey(key K, start *C, reverse bool, f func(C) (bool, error)) (next *C, err error) {
+	k, err := c.collections.keyEncoding.Encode(key)
 	if err != nil {
 		return nil, fmt.Errorf("encode key: %w", err)
 	}
@@ -419,8 +419,8 @@ func (c *Collections[C, K, V]) IterateCollectionsWithKey(key K, start *C, revers
 	if keyBucket == nil {
 		return nil, nil
 	}
-	return iterateKeys(keyBucket, c.definition.collectionKeyEncoding, start, reverse, func(k, _ []byte) (bool, error) {
-		key, err := c.definition.collectionKeyEncoding.Decode(k)
+	return iterateKeys(keyBucket, c.collections.collectionKeyEncoding, start, reverse, func(k, _ []byte) (bool, error) {
+		key, err := c.collections.collectionKeyEncoding.Decode(k)
 		if err != nil {
 			return false, fmt.Errorf("decode collection key: %w", err)
 		}
@@ -431,8 +431,8 @@ func (c *Collections[C, K, V]) IterateCollectionsWithKey(key K, start *C, revers
 
 // PageOfCollectionsWithKey returns at most a limit of collection keys that
 // contain the provided key at the provided page number.
-func (c *Collections[C, K, V]) PageOfCollectionsWithKey(key K, number, limit int, reverse bool) (s []C, totalElements, pages int, err error) {
-	k, err := c.definition.keyEncoding.Encode(key)
+func (c *CollectionsTx[C, K, V]) PageOfCollectionsWithKey(key K, number, limit int, reverse bool) (s []C, totalElements, pages int, err error) {
+	k, err := c.collections.keyEncoding.Encode(key)
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("encode key: %w", err)
 	}
@@ -448,14 +448,14 @@ func (c *Collections[C, K, V]) PageOfCollectionsWithKey(key K, number, limit int
 		return nil, 0, 0, nil
 	}
 	return page(keyBucket, false, number, limit, reverse, func(k, _ []byte) (C, error) {
-		return c.definition.collectionKeyEncoding.Decode(k)
+		return c.collections.collectionKeyEncoding.Decode(k)
 	})
 }
 
 // IterateKeys iterates over all keys in the lexicographical order of keys. If
 // the callback function f returns false, the iteration stops and the next can
 // be used to continue the iteration.
-func (c *Collections[C, K, V]) IterateKeys(start *K, reverse bool, f func(K) (bool, error)) (next *K, err error) {
+func (c *CollectionsTx[C, K, V]) IterateKeys(start *K, reverse bool, f func(K) (bool, error)) (next *K, err error) {
 	keysBucket, err := c.keysBucket(false)
 	if err != nil {
 		return nil, fmt.Errorf("keys bucket: %w", err)
@@ -463,8 +463,8 @@ func (c *Collections[C, K, V]) IterateKeys(start *K, reverse bool, f func(K) (bo
 	if keysBucket == nil {
 		return nil, nil
 	}
-	return iterateKeys(keysBucket, c.definition.keyEncoding, start, reverse, func(k, _ []byte) (bool, error) {
-		key, err := c.definition.keyEncoding.Decode(k)
+	return iterateKeys(keysBucket, c.collections.keyEncoding, start, reverse, func(k, _ []byte) (bool, error) {
+		key, err := c.collections.keyEncoding.Decode(k)
 		if err != nil {
 			return false, fmt.Errorf("decode key: %w", err)
 		}
@@ -474,7 +474,7 @@ func (c *Collections[C, K, V]) IterateKeys(start *K, reverse bool, f func(K) (bo
 }
 
 // PageOfKeys returns at most a limit of keys at the provided page number.
-func (c *Collections[C, K, V]) PageOfKeys(number, limit int, reverse bool) (s []K, totalElements, pages int, err error) {
+func (c *CollectionsTx[C, K, V]) PageOfKeys(number, limit int, reverse bool) (s []K, totalElements, pages int, err error) {
 	keysBucket, err := c.keysBucket(false)
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("keys bucket: %w", err)
@@ -483,6 +483,6 @@ func (c *Collections[C, K, V]) PageOfKeys(number, limit int, reverse bool) (s []
 		return nil, 0, 0, nil
 	}
 	return page(keysBucket, true, number, limit, reverse, func(k, _ []byte) (K, error) {
-		return c.definition.keyEncoding.Decode(k)
+		return c.collections.keyEncoding.Decode(k)
 	})
 }

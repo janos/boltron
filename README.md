@@ -7,11 +7,11 @@
 Package boltron provides type safe generic constructs to design data models
 using [BoltDB](go.etcd.io/bbolt) embedded key value store.
 
-Definitions statically define encodings and options for other types to be
+Types statically define encodings and options for other types to be
 serialized and they provide methods to access and modify serialized data
 within bolt transactions.
 
-There are three basic types with their definitions:
+There are three basic types:
 
 - Collection
 - Association
@@ -40,7 +40,7 @@ type Record struct {
 	Message string
 }
 
-var recordsDefinition = boltron.NewCollectionDefinition(
+var records = boltron.NewCollection(
 	"records",
 	boltron.Uint64BinaryEncoding,       // records are identified by their integer values
 	boltron.NewJSONEncoding[*Record](), // JSON encoding of the Record type,
@@ -52,7 +52,7 @@ Use it in transaction:
 
 ```go
 db.Update(func(tx *bolt.Tx) error {
-	records := recordsDefinition.Collection(tx)
+	records := records.Tx(tx)
 	_, err := records.Save(42, &Record{
 		Message: "Hello",
 	}, false)

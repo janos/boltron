@@ -12,11 +12,11 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-// ListDefinition defines a list of values, ordered by the provided order type.
+// List defines a list of values, ordered by the provided order type.
 // List values are unique, but the order by values are not. If the order is
 // defined by the values encoding, or it is not important, order by encoding
 // should be set to NullEncoding.
-type ListDefinition[V, O any] struct {
+type List[V, O any] struct {
 	bucketPath       [][]byte
 	bucketPathIndex  [][]byte
 	valueEncoding    Encoding[V]
@@ -35,18 +35,18 @@ type ListOptions struct {
 	ErrValueNotFound error
 }
 
-// NewListDefinition constructs a new ListDefinition with a unique name and key
+// NewList constructs a new List with a unique name and key
 // and order by encodings.
-func NewListDefinition[V, O any](
+func NewList[V, O any](
 	name string,
 	valueEncoding Encoding[V],
 	orderByEncoding Encoding[O],
 	o *ListOptions,
-) *ListDefinition[V, O] {
+) *List[V, O] {
 	if o == nil {
 		o = new(ListOptions)
 	}
-	return &ListDefinition[V, O]{
+	return &List[V, O]{
 		bucketPath:       bucketPath("boltron: list: " + name + " values"),
 		bucketPathIndex:  bucketPath("boltron: list: " + name + " index"),
 		valueEncoding:    valueEncoding,
@@ -56,56 +56,56 @@ func NewListDefinition[V, O any](
 	}
 }
 
-// List returns a List that has access to the stored data through the bolt
-// transaction.
-func (d *ListDefinition[V, O]) List(tx *bolt.Tx) *List[V, O] {
-	return &List[V, O]{
-		tx:         tx,
-		definition: d,
+// Tx returns an List transaction with access to the stored data
+// through the bolt transaction.
+func (d *List[V, O]) Tx(tx *bolt.Tx) *ListTx[V, O] {
+	return &ListTx[V, O]{
+		tx:   tx,
+		list: d,
 	}
 }
 
-// List provides methods to access and change ordered list of values.
-type List[V, O any] struct {
+// ListTx provides methods to access and change ordered list of values.
+type ListTx[V, O any] struct {
 	tx               *bolt.Tx
 	listBucketCache  *bolt.Bucket
 	indexBucketCache *bolt.Bucket
-	definition       *ListDefinition[V, O]
+	list             *List[V, O]
 }
 
-func (l *List[V, O]) listBucket(create bool) (*bolt.Bucket, error) {
+func (l *ListTx[V, O]) listBucket(create bool) (*bolt.Bucket, error) {
 	if l.listBucketCache != nil {
 		return l.listBucketCache, nil
 	}
-	bucket, err := deepBucket(l.tx, create, l.definition.bucketPath...)
+	bucket, err := deepBucket(l.tx, create, l.list.bucketPath...)
 	if err != nil {
 		return nil, err
 	}
-	if l.definition.fillPercent > 0 && bucket != nil {
-		bucket.FillPercent = l.definition.fillPercent
+	if l.list.fillPercent > 0 && bucket != nil {
+		bucket.FillPercent = l.list.fillPercent
 	}
 	l.listBucketCache = bucket
 	return bucket, nil
 }
 
-func (l *List[V, O]) indexBucket(create bool) (*bolt.Bucket, error) {
+func (l *ListTx[V, O]) indexBucket(create bool) (*bolt.Bucket, error) {
 	if l.indexBucketCache != nil {
 		return l.indexBucketCache, nil
 	}
-	bucket, err := deepBucket(l.tx, create, l.definition.bucketPathIndex...)
+	bucket, err := deepBucket(l.tx, create, l.list.bucketPathIndex...)
 	if err != nil {
 		return nil, err
 	}
-	if l.definition.fillPercent > 0 && bucket != nil {
-		bucket.FillPercent = l.definition.fillPercent
+	if l.list.fillPercent > 0 && bucket != nil {
+		bucket.FillPercent = l.list.fillPercent
 	}
 	l.indexBucketCache = bucket
 	return bucket, nil
 }
 
 // Has returns true if the value already exists in the database.
-func (o *List[V, O]) Has(value V) (bool, error) {
-	v, err := o.definition.valueEncoding.Encode(value)
+func (o *ListTx[V, O]) Has(value V) (bool, error) {
+	v, err := o.list.valueEncoding.Encode(value)
 	if err != nil {
 		return false, fmt.Errorf("encode value: %w", err)
 	}
@@ -120,8 +120,8 @@ func (o *List[V, O]) Has(value V) (bool, error) {
 }
 
 // OrderBy returns the saved order by instance for the provided value.
-func (l *List[V, O]) OrderBy(value V) (orderBy O, err error) {
-	v, err := l.definition.valueEncoding.Encode(value)
+func (l *ListTx[V, O]) OrderBy(value V) (orderBy O, err error) {
+	v, err := l.list.valueEncoding.Encode(value)
 	if err != nil {
 		return orderBy, fmt.Errorf("encode value: %w", err)
 	}
@@ -131,15 +131,15 @@ func (l *List[V, O]) OrderBy(value V) (orderBy O, err error) {
 		return orderBy, fmt.Errorf("index bucket: %w", err)
 	}
 	if indexBucket == nil {
-		return orderBy, l.definition.errValueNotFound
+		return orderBy, l.list.errValueNotFound
 	}
 
 	o := indexBucket.Get(v)
 	if o == nil {
-		return orderBy, l.definition.errValueNotFound
+		return orderBy, l.list.errValueNotFound
 	}
 
-	orderBy, err = l.definition.orderByEncoding.Decode(o)
+	orderBy, err = l.list.orderByEncoding.Decode(o)
 	if err != nil {
 		return orderBy, fmt.Errorf("decode order by: %w", err)
 	}
@@ -148,12 +148,12 @@ func (l *List[V, O]) OrderBy(value V) (orderBy O, err error) {
 }
 
 // Add adds a value to the list with an order by instance.
-func (l *List[V, O]) Add(value V, orderBy O) error {
-	v, err := l.definition.valueEncoding.Encode(value)
+func (l *ListTx[V, O]) Add(value V, orderBy O) error {
+	v, err := l.list.valueEncoding.Encode(value)
 	if err != nil {
 		return fmt.Errorf("encode value: %w", err)
 	}
-	o, err := l.definition.orderByEncoding.Encode(orderBy)
+	o, err := l.list.orderByEncoding.Encode(orderBy)
 	if err != nil {
 		return fmt.Errorf("encode order by: %w", err)
 	}
@@ -186,8 +186,8 @@ func (l *List[V, O]) Add(value V, orderBy O) error {
 		return fmt.Errorf("put to index bucket: %w", err)
 	}
 
-	if l.definition.addCallback != nil {
-		if err := l.definition.addCallback(v, o); err != nil {
+	if l.list.addCallback != nil {
+		if err := l.list.addCallback(v, o); err != nil {
 			return fmt.Errorf("add callback: %w", err)
 		}
 	}
@@ -198,8 +198,8 @@ func (l *List[V, O]) Add(value V, orderBy O) error {
 // Remove removes the value and its associated order by from the database. If
 // ensure flag is set to true and the value does not exist, ErrNotFound is
 // returned.
-func (l *List[V, O]) Remove(value V, ensure bool) error {
-	v, err := l.definition.valueEncoding.Encode(value)
+func (l *ListTx[V, O]) Remove(value V, ensure bool) error {
+	v, err := l.list.valueEncoding.Encode(value)
 	if err != nil {
 		return fmt.Errorf("encode value: %w", err)
 	}
@@ -211,7 +211,7 @@ func (l *List[V, O]) Remove(value V, ensure bool) error {
 
 	if indexBucket == nil {
 		if ensure {
-			return l.definition.errValueNotFound
+			return l.list.errValueNotFound
 		}
 		return nil
 	}
@@ -219,7 +219,7 @@ func (l *List[V, O]) Remove(value V, ensure bool) error {
 	o := indexBucket.Get(v)
 	if o == nil {
 		if ensure {
-			return l.definition.errValueNotFound
+			return l.list.errValueNotFound
 		}
 		return nil
 	}
@@ -231,7 +231,7 @@ func (l *List[V, O]) Remove(value V, ensure bool) error {
 
 	if listBucket == nil {
 		if ensure {
-			return l.definition.errValueNotFound
+			return l.list.errValueNotFound
 		}
 		return nil
 	}
@@ -243,8 +243,8 @@ func (l *List[V, O]) Remove(value V, ensure bool) error {
 		return fmt.Errorf("delete from index bucket: %w", err)
 	}
 
-	if l.definition.removeCallback != nil {
-		if err := l.definition.removeCallback(v, o); err != nil {
+	if l.list.removeCallback != nil {
+		if err := l.list.removeCallback(v, o); err != nil {
 			return fmt.Errorf("remove callback: %w", err)
 		}
 	}
@@ -255,7 +255,7 @@ func (l *List[V, O]) Remove(value V, ensure bool) error {
 // Iterate iterates over keys and values in the lexicographical order of keys.
 // If the callback function f returns false, the iteration stops and the next
 // can be used to continue the iteration.
-func (l *List[V, O]) Iterate(start *ListElement[V, O], reverse bool, f func(V, O) (bool, error)) (next *ListElement[V, O], err error) {
+func (l *ListTx[V, O]) Iterate(start *ListElement[V, O], reverse bool, f func(V, O) (bool, error)) (next *ListElement[V, O], err error) {
 	listBucket, err := l.listBucket(false)
 	if err != nil {
 		return nil, fmt.Errorf("list bucket: %w", err)
@@ -263,13 +263,13 @@ func (l *List[V, O]) Iterate(start *ListElement[V, O], reverse bool, f func(V, O
 	if listBucket == nil {
 		return nil, nil
 	}
-	return iterateList(listBucket, l.definition.valueEncoding, l.definition.orderByEncoding, start, reverse, func(ov, v []byte) (bool, error) {
-		value, err := l.definition.valueEncoding.Decode(v)
+	return iterateList(listBucket, l.list.valueEncoding, l.list.orderByEncoding, start, reverse, func(ov, v []byte) (bool, error) {
+		value, err := l.list.valueEncoding.Decode(v)
 		if err != nil {
 			return false, fmt.Errorf("decode value: %w", err)
 		}
 
-		orderBy, err := l.definition.orderByEncoding.Decode(ov[:len(ov)-len(v)])
+		orderBy, err := l.list.orderByEncoding.Decode(ov[:len(ov)-len(v)])
 		if err != nil {
 			return false, fmt.Errorf("decode order by: %w", err)
 		}
@@ -281,7 +281,7 @@ func (l *List[V, O]) Iterate(start *ListElement[V, O], reverse bool, f func(V, O
 // IterateValues iterates over values in the lexicographical order of order by.
 // If the callback function f returns false, the iteration stops and the next
 // can be used to continue the iteration.
-func (l *List[V, O]) IterateValues(start *ListElement[V, O], reverse bool, f func(V) (bool, error)) (next *ListElement[V, O], err error) {
+func (l *ListTx[V, O]) IterateValues(start *ListElement[V, O], reverse bool, f func(V) (bool, error)) (next *ListElement[V, O], err error) {
 	listBucket, err := l.listBucket(false)
 	if err != nil {
 		return nil, fmt.Errorf("list bucket: %w", err)
@@ -289,8 +289,8 @@ func (l *List[V, O]) IterateValues(start *ListElement[V, O], reverse bool, f fun
 	if listBucket == nil {
 		return nil, nil
 	}
-	return iterateList(listBucket, l.definition.valueEncoding, l.definition.orderByEncoding, start, reverse, func(_, v []byte) (bool, error) {
-		value, err := l.definition.valueEncoding.Decode(v)
+	return iterateList(listBucket, l.list.valueEncoding, l.list.orderByEncoding, start, reverse, func(_, v []byte) (bool, error) {
+		value, err := l.list.valueEncoding.Decode(v)
 		if err != nil {
 			return false, fmt.Errorf("decode value: %w", err)
 		}
@@ -300,7 +300,7 @@ func (l *List[V, O]) IterateValues(start *ListElement[V, O], reverse bool, f fun
 }
 
 // Size returns the number of list elements.
-func (l *List[V, O]) Size() (int, error) {
+func (l *ListTx[V, O]) Size() (int, error) {
 	listBucket, err := l.listBucket(false)
 	if err != nil {
 		return 0, fmt.Errorf("list bucket: %w", err)
@@ -320,7 +320,7 @@ type ListElement[V, O any] struct {
 
 // Page returns at most a limit of elements of values and order by instances at
 // the provided page number.
-func (l *List[V, O]) Page(number, limit int, reverse bool) (s []ListElement[V, O], totalElements, pages int, err error) {
+func (l *ListTx[V, O]) Page(number, limit int, reverse bool) (s []ListElement[V, O], totalElements, pages int, err error) {
 	listBucket, err := l.listBucket(false)
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("list bucket: %w", err)
@@ -329,12 +329,12 @@ func (l *List[V, O]) Page(number, limit int, reverse bool) (s []ListElement[V, O
 		return nil, 0, 0, nil
 	}
 	return page(listBucket, false, number, limit, reverse, func(ov, v []byte) (e ListElement[V, O], err error) {
-		value, err := l.definition.valueEncoding.Decode(v)
+		value, err := l.list.valueEncoding.Decode(v)
 		if err != nil {
 			return e, fmt.Errorf("decode value: %w", err)
 		}
 
-		orderBy, err := l.definition.orderByEncoding.Decode(ov[:len(ov)-len(v)])
+		orderBy, err := l.list.orderByEncoding.Decode(ov[:len(ov)-len(v)])
 		if err != nil {
 			return e, fmt.Errorf("decode order by: %w", err)
 		}
@@ -348,7 +348,7 @@ func (l *List[V, O]) Page(number, limit int, reverse bool) (s []ListElement[V, O
 
 // PageOfValues returns at most a limit of elements of values at the provided
 // page number.
-func (l *List[V, O]) PageOfValues(number, limit int, reverse bool) (s []V, totalElements, pages int, err error) {
+func (l *ListTx[V, O]) PageOfValues(number, limit int, reverse bool) (s []V, totalElements, pages int, err error) {
 	listBucket, err := l.listBucket(false)
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("list bucket: %w", err)
@@ -357,6 +357,6 @@ func (l *List[V, O]) PageOfValues(number, limit int, reverse bool) (s []V, total
 		return nil, 0, 0, nil
 	}
 	return page(listBucket, false, number, limit, reverse, func(_, v []byte) (value V, err error) {
-		return l.definition.valueEncoding.Decode(v)
+		return l.list.valueEncoding.Decode(v)
 	})
 }

@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	ballotsDefinition = boltron.NewAssociationsDefinition(
+	ballots = boltron.NewAssociations(
 		"ballots",
 		boltron.Uint64BinaryEncoding,       // voting id
 		boltron.StringNaturalOrderEncoding, // voter
@@ -73,7 +73,7 @@ func TestAssociations(t *testing.T) {
 	db := ballotsDB(t)
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		ballots := ballotsDefinition.Associations(tx)
+		ballots := ballots.Tx(tx)
 
 		for _, b := range testBallots {
 			has, err := ballots.HasAssociation(b.Voting)
@@ -105,7 +105,7 @@ func TestAssociations(t *testing.T) {
 	deletedLeft := "edit"
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		ballots := ballotsDefinition.Associations(tx)
+		ballots := ballots.Tx(tx)
 
 		err := ballots.DeleteLeft("unknown", true)
 		assertErrorFail(t, "", err, boltron.ErrLeftNotFound)
@@ -118,7 +118,7 @@ func TestAssociations(t *testing.T) {
 
 		deletedLeftIndirectly := "dave"
 
-		ballots := ballotsDefinition.Associations(tx)
+		ballots := ballots.Tx(tx)
 
 		ballot, _, err := ballots.Association(1)
 		assertErrorFail(t, "", err, nil)
@@ -148,7 +148,7 @@ func TestAssociations(t *testing.T) {
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
 
-		ballots := ballotsDefinition.Associations(tx)
+		ballots := ballots.Tx(tx)
 
 		ballot, _, err := ballots.Association(6)
 		assertErrorFail(t, "", err, nil)
@@ -175,7 +175,7 @@ func TestAssociations(t *testing.T) {
 	})
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		ballots := ballotsDefinition.Associations(tx)
+		ballots := ballots.Tx(tx)
 
 		for _, b := range testBallotsAssociations {
 			has, err := ballots.HasAssociation(b)
@@ -205,7 +205,7 @@ func TestAssociations(t *testing.T) {
 	deletedAssociation := uint64(3)
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		ballots := ballotsDefinition.Associations(tx)
+		ballots := ballots.Tx(tx)
 
 		err := ballots.DeleteAssociation(100, true)
 		assertErrorFail(t, "", err, boltron.ErrNotFound)
@@ -215,7 +215,7 @@ func TestAssociations(t *testing.T) {
 	})
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		ballots := ballotsDefinition.Associations(tx)
+		ballots := ballots.Tx(tx)
 
 		for _, b := range testBallots {
 			has, err := ballots.HasAssociation(b.Voting)
@@ -238,7 +238,7 @@ func TestAssociations_iterateAssociations(t *testing.T) {
 
 	t.Run("forward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			ballots := ballotsDefinition.Associations(tx)
+			ballots := ballots.Tx(tx)
 
 			var i int
 			next, err := ballots.IterateAssociations(nil, false, func(v uint64) (bool, error) {
@@ -254,7 +254,7 @@ func TestAssociations_iterateAssociations(t *testing.T) {
 
 	t.Run("forward partial", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			ballots := ballotsDefinition.Associations(tx)
+			ballots := ballots.Tx(tx)
 
 			var i int
 			next, err := ballots.IterateAssociations(nil, false, func(v uint64) (bool, error) {
@@ -281,7 +281,7 @@ func TestAssociations_iterateAssociations(t *testing.T) {
 
 	t.Run("backward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			ballots := ballotsDefinition.Associations(tx)
+			ballots := ballots.Tx(tx)
 
 			var i int
 			next, err := ballots.IterateAssociations(nil, true, func(v uint64) (bool, error) {
@@ -297,7 +297,7 @@ func TestAssociations_iterateAssociations(t *testing.T) {
 
 	t.Run("backward partial", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			ballots := ballotsDefinition.Associations(tx)
+			ballots := ballots.Tx(tx)
 
 			var i int
 			next, err := ballots.IterateAssociations(nil, true, func(v uint64) (bool, error) {
@@ -326,7 +326,7 @@ func TestAssociations_iterateAssociations(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			ballots := ballotsDefinition.Associations(tx)
+			ballots := ballots.Tx(tx)
 
 			var count int
 			next, err := ballots.IterateAssociations(nil, false, func(_ uint64) (bool, error) {
@@ -345,7 +345,7 @@ func TestAssociations_size(t *testing.T) {
 
 	t.Run("full", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			ballots := ballotsDefinition.Associations(tx)
+			ballots := ballots.Tx(tx)
 
 			size, err := ballots.Size()
 			assertErrorFail(t, "", err, nil)
@@ -358,7 +358,7 @@ func TestAssociations_size(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			ballots := ballotsDefinition.Associations(tx)
+			ballots := ballots.Tx(tx)
 
 			size, err := ballots.Size()
 			assertErrorFail(t, "", err, nil)
@@ -372,7 +372,7 @@ func TestAssociations_pageOfAssociations(t *testing.T) {
 
 	t.Run("forward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			ballots := ballotsDefinition.Associations(tx)
+			ballots := ballots.Tx(tx)
 
 			_, _, _, err := ballots.PageOfAssociations(-1, 3, false)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
@@ -396,7 +396,7 @@ func TestAssociations_pageOfAssociations(t *testing.T) {
 
 	t.Run("backward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			ballots := ballotsDefinition.Associations(tx)
+			ballots := ballots.Tx(tx)
 
 			_, _, _, err := ballots.PageOfAssociations(-1, 3, false)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
@@ -422,7 +422,7 @@ func TestAssociations_pageOfAssociations(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			ballots := ballotsDefinition.Associations(tx)
+			ballots := ballots.Tx(tx)
 
 			page, totalElements, totalPages, err := ballots.PageOfAssociations(1, 3, true)
 			assertErrorFail(t, "", err, nil)
@@ -438,7 +438,7 @@ func TestAssociations_iterateAssociationsWithLeftValue(t *testing.T) {
 
 	t.Run("forward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			ballots := ballotsDefinition.Associations(tx)
+			ballots := ballots.Tx(tx)
 
 			var i int
 			next, err := ballots.IterateAssociationsWithLeftValue("alice", nil, false, func(v uint64) (bool, error) {
@@ -454,7 +454,7 @@ func TestAssociations_iterateAssociationsWithLeftValue(t *testing.T) {
 
 	t.Run("forward partial", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			ballots := ballotsDefinition.Associations(tx)
+			ballots := ballots.Tx(tx)
 
 			var i int
 			next, err := ballots.IterateAssociationsWithLeftValue("alice", nil, false, func(v uint64) (bool, error) {
@@ -481,7 +481,7 @@ func TestAssociations_iterateAssociationsWithLeftValue(t *testing.T) {
 
 	t.Run("backward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			ballots := ballotsDefinition.Associations(tx)
+			ballots := ballots.Tx(tx)
 
 			var i int
 			next, err := ballots.IterateAssociationsWithLeftValue("alice", nil, true, func(v uint64) (bool, error) {
@@ -497,7 +497,7 @@ func TestAssociations_iterateAssociationsWithLeftValue(t *testing.T) {
 
 	t.Run("backward partial", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			ballots := ballotsDefinition.Associations(tx)
+			ballots := ballots.Tx(tx)
 
 			var i int
 			next, err := ballots.IterateAssociationsWithLeftValue("alice", nil, true, func(v uint64) (bool, error) {
@@ -526,7 +526,7 @@ func TestAssociations_iterateAssociationsWithLeftValue(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			ballots := ballotsDefinition.Associations(tx)
+			ballots := ballots.Tx(tx)
 
 			var count int
 			next, err := ballots.IterateAssociationsWithLeftValue("alice", nil, false, func(_ uint64) (bool, error) {
@@ -539,7 +539,7 @@ func TestAssociations_iterateAssociationsWithLeftValue(t *testing.T) {
 		})
 
 		dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-			ballots := ballotsDefinition.Associations(tx)
+			ballots := ballots.Tx(tx)
 
 			association, exists, err := ballots.Association(100)
 			assertErrorFail(t, "", err, nil)
@@ -550,7 +550,7 @@ func TestAssociations_iterateAssociationsWithLeftValue(t *testing.T) {
 		})
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			ballots := ballotsDefinition.Associations(tx)
+			ballots := ballots.Tx(tx)
 
 			var count int
 			next, err := ballots.IterateAssociationsWithLeftValue("alice", nil, false, func(_ uint64) (bool, error) {
@@ -569,7 +569,7 @@ func TestAssociations_pageOfAssociationsWithLeftValue(t *testing.T) {
 
 	t.Run("forward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			ballots := ballotsDefinition.Associations(tx)
+			ballots := ballots.Tx(tx)
 
 			_, _, _, err := ballots.PageOfAssociationsWithLeftValue("alice", -1, 3, false)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
@@ -593,7 +593,7 @@ func TestAssociations_pageOfAssociationsWithLeftValue(t *testing.T) {
 
 	t.Run("backward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			ballots := ballotsDefinition.Associations(tx)
+			ballots := ballots.Tx(tx)
 
 			_, _, _, err := ballots.PageOfAssociationsWithLeftValue("alice", -1, 3, false)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
@@ -619,7 +619,7 @@ func TestAssociations_pageOfAssociationsWithLeftValue(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			ballots := ballotsDefinition.Associations(tx)
+			ballots := ballots.Tx(tx)
 
 			page, totalElements, totalPages, err := ballots.PageOfAssociationsWithLeftValue("alice", 1, 3, true)
 			assertErrorFail(t, "", err, nil)
@@ -629,7 +629,7 @@ func TestAssociations_pageOfAssociationsWithLeftValue(t *testing.T) {
 		})
 
 		dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-			ballots := ballotsDefinition.Associations(tx)
+			ballots := ballots.Tx(tx)
 
 			association, exists, err := ballots.Association(0)
 			assertErrorFail(t, "", err, nil)
@@ -640,7 +640,7 @@ func TestAssociations_pageOfAssociationsWithLeftValue(t *testing.T) {
 		})
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			ballots := ballotsDefinition.Associations(tx)
+			ballots := ballots.Tx(tx)
 
 			page, totalElements, totalPages, err := ballots.PageOfAssociationsWithLeftValue("alice", 1, 3, true)
 			assertErrorFail(t, "", err, nil)
@@ -656,7 +656,7 @@ func TestAssociations_iterateLeftValues(t *testing.T) {
 
 	t.Run("forward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			ballots := ballotsDefinition.Associations(tx)
+			ballots := ballots.Tx(tx)
 
 			var i int
 			next, err := ballots.IterateLeftValues(nil, false, func(v string) (bool, error) {
@@ -671,7 +671,7 @@ func TestAssociations_iterateLeftValues(t *testing.T) {
 
 	t.Run("forward partial", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			ballots := ballotsDefinition.Associations(tx)
+			ballots := ballots.Tx(tx)
 
 			var i int
 			next, err := ballots.IterateLeftValues(nil, false, func(v string) (bool, error) {
@@ -697,7 +697,7 @@ func TestAssociations_iterateLeftValues(t *testing.T) {
 
 	t.Run("backward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			ballots := ballotsDefinition.Associations(tx)
+			ballots := ballots.Tx(tx)
 
 			var i int
 			next, err := ballots.IterateLeftValues(nil, true, func(v string) (bool, error) {
@@ -712,7 +712,7 @@ func TestAssociations_iterateLeftValues(t *testing.T) {
 
 	t.Run("backward partial", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			ballots := ballotsDefinition.Associations(tx)
+			ballots := ballots.Tx(tx)
 
 			var i int
 			next, err := ballots.IterateLeftValues(nil, true, func(v string) (bool, error) {
@@ -740,7 +740,7 @@ func TestAssociations_iterateLeftValues(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			ballots := ballotsDefinition.Associations(tx)
+			ballots := ballots.Tx(tx)
 
 			var count int
 			next, err := ballots.IterateLeftValues(nil, false, func(_ string) (bool, error) {
@@ -759,7 +759,7 @@ func TestAssociations_pageOfLeftValues(t *testing.T) {
 
 	t.Run("forward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			ballots := ballotsDefinition.Associations(tx)
+			ballots := ballots.Tx(tx)
 
 			_, _, _, err := ballots.PageOfLeftValues(-1, 3, false)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
@@ -795,7 +795,7 @@ func TestAssociations_pageOfLeftValues(t *testing.T) {
 
 	t.Run("backward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			ballots := ballotsDefinition.Associations(tx)
+			ballots := ballots.Tx(tx)
 
 			_, _, _, err := ballots.PageOfLeftValues(-1, 3, false)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
@@ -833,7 +833,7 @@ func TestAssociations_pageOfLeftValues(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			ballots := ballotsDefinition.Associations(tx)
+			ballots := ballots.Tx(tx)
 
 			page, totalElements, totalPages, err := ballots.PageOfLeftValues(1, 3, true)
 			assertErrorFail(t, "", err, nil)
@@ -848,7 +848,7 @@ func TestAssociations_ErrAssociationNotFound_and_ErrNotFound(t *testing.T) {
 	db := newDB(t)
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		ballots := ballotsDefinition.Associations(tx)
+		ballots := ballots.Tx(tx)
 
 		_, exists, err := ballots.Association(0)
 		assertError(t, "", err, nil)
@@ -876,7 +876,7 @@ func TestAssociations_ErrAssociationNotFound_and_ErrNotFound(t *testing.T) {
 	})
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		ballots := ballotsDefinition.Associations(tx)
+		ballots := ballots.Tx(tx)
 
 		association, exists, err := ballots.Association(1)
 		assertErrorFail(t, "", err, nil)
@@ -887,7 +887,7 @@ func TestAssociations_ErrAssociationNotFound_and_ErrNotFound(t *testing.T) {
 	})
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		ballots := ballotsDefinition.Associations(tx)
+		ballots := ballots.Tx(tx)
 
 		_, exists, err := ballots.Association(0)
 		assertError(t, "", err, nil)
@@ -921,7 +921,7 @@ func TestAssociations_customErrAssociationNotFound_and_customErrLeftNotFound_and
 	errLeftNotFoundCustom := errors.New("custom left not found error")
 	errRightNotFoundCustom := errors.New("custom right not found error")
 
-	customBallotsDefinition := boltron.NewAssociationsDefinition(
+	customBallots := boltron.NewAssociations(
 		"ballots",
 		boltron.Uint64BinaryEncoding,       // voting id
 		boltron.StringNaturalOrderEncoding, // voter
@@ -936,7 +936,7 @@ func TestAssociations_customErrAssociationNotFound_and_customErrLeftNotFound_and
 	db := newDB(t)
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		ballots := customBallotsDefinition.Associations(tx)
+		ballots := customBallots.Tx(tx)
 
 		_, exists, err := ballots.Association(0)
 		assertError(t, "", err, nil)
@@ -964,7 +964,7 @@ func TestAssociations_customErrAssociationNotFound_and_customErrLeftNotFound_and
 	})
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		ballots := customBallotsDefinition.Associations(tx)
+		ballots := customBallots.Tx(tx)
 
 		association, exists, err := ballots.Association(1)
 		assertErrorFail(t, "", err, nil)
@@ -975,7 +975,7 @@ func TestAssociations_customErrAssociationNotFound_and_customErrLeftNotFound_and
 	})
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		ballots := customBallotsDefinition.Associations(tx)
+		ballots := customBallots.Tx(tx)
 
 		_, exists, err := ballots.Association(0)
 		assertError(t, "", err, nil)
@@ -1005,7 +1005,7 @@ func TestAssociations_customErrAssociationNotFound_and_customErrLeftNotFound_and
 
 func TestAssociations_uniqueKeys(t *testing.T) {
 
-	customBallotsDefinition := boltron.NewAssociationsDefinition(
+	customBallots := boltron.NewAssociations(
 		"ballots",
 		boltron.Uint64BinaryEncoding,       // voting id
 		boltron.StringNaturalOrderEncoding, // voter
@@ -1018,7 +1018,7 @@ func TestAssociations_uniqueKeys(t *testing.T) {
 	db := newDB(t)
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		ballots := customBallotsDefinition.Associations(tx)
+		ballots := customBallots.Tx(tx)
 
 		election0, exists, err := ballots.Association(0)
 		assertErrorFail(t, "", err, nil)
@@ -1040,7 +1040,7 @@ func TestAssociations_uniqueKeys_customErrKeyExists(t *testing.T) {
 
 	errLeftExistsCustom := errors.New("custom left exists error")
 
-	customBallotsDefinition := boltron.NewAssociationsDefinition(
+	customBallots := boltron.NewAssociations(
 		"ballots",
 		boltron.Uint64BinaryEncoding,       // voting id
 		boltron.StringNaturalOrderEncoding, // voter
@@ -1054,7 +1054,7 @@ func TestAssociations_uniqueKeys_customErrKeyExists(t *testing.T) {
 	db := newDB(t)
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		ballots := customBallotsDefinition.Associations(tx)
+		ballots := customBallots.Tx(tx)
 
 		election0, exists, err := ballots.Association(0)
 		assertErrorFail(t, "", err, nil)
@@ -1078,7 +1078,7 @@ func ballotsDB(t testing.TB) *bolt.DB {
 	db := newDB(t)
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		ballots := ballotsDefinition.Associations(tx)
+		ballots := ballots.Tx(tx)
 
 		ballots1, exists, err := ballots.Association(1)
 		assertErrorFail(t, "", err, nil)

@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	todoDefinition = boltron.NewListDefinition(
+	todo = boltron.NewList(
 		"todo",
 		boltron.StringEncoding,
 		boltron.TimeEncoding,
@@ -43,7 +43,7 @@ func TestList(t *testing.T) {
 	db := newTodoDB(t)
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		todo := todoDefinition.List(tx)
+		todo := todo.Tx(tx)
 
 		for _, v := range testTodo {
 			has, err := todo.Has(v.Value)
@@ -59,7 +59,7 @@ func TestList(t *testing.T) {
 	removedValue := "Plan new features"
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		todo := todoDefinition.List(tx)
+		todo := todo.Tx(tx)
 
 		err := todo.Remove(removedValue, true)
 		assertErrorFail(t, "", err, nil)
@@ -72,7 +72,7 @@ func TestList(t *testing.T) {
 	})
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		todo := todoDefinition.List(tx)
+		todo := todo.Tx(tx)
 
 		for _, v := range testTodo {
 			has, err := todo.Has(v.Value)
@@ -94,7 +94,7 @@ func TestList(t *testing.T) {
 	updatedTime := testTodo[2].Time.Add(10 * time.Minute)
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		todo := todoDefinition.List(tx)
+		todo := todo.Tx(tx)
 
 		err := todo.Add(value, updatedTime)
 		assertErrorFail(t, "", err, nil)
@@ -107,7 +107,7 @@ func TestList(t *testing.T) {
 	})
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		todo := todoDefinition.List(tx)
+		todo := todo.Tx(tx)
 
 		has, err := todo.Has(value)
 		assertErrorFail(t, "", err, nil)
@@ -124,7 +124,7 @@ func TestList_iterate(t *testing.T) {
 
 	t.Run("forward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			todo := todoDefinition.List(tx)
+			todo := todo.Tx(tx)
 
 			var i int
 			next, err := todo.Iterate(nil, false, func(v string, o time.Time) (bool, error) {
@@ -141,7 +141,7 @@ func TestList_iterate(t *testing.T) {
 
 	t.Run("forward partial", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			todo := todoDefinition.List(tx)
+			todo := todo.Tx(tx)
 
 			var i int
 			next, err := todo.Iterate(nil, false, func(v string, o time.Time) (bool, error) {
@@ -171,7 +171,7 @@ func TestList_iterate(t *testing.T) {
 
 	t.Run("backward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			todo := todoDefinition.List(tx)
+			todo := todo.Tx(tx)
 
 			var i int
 			next, err := todo.Iterate(nil, true, func(v string, o time.Time) (bool, error) {
@@ -188,7 +188,7 @@ func TestList_iterate(t *testing.T) {
 
 	t.Run("backward partial", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			todo := todoDefinition.List(tx)
+			todo := todo.Tx(tx)
 
 			var i int
 			next, err := todo.Iterate(nil, true, func(v string, o time.Time) (bool, error) {
@@ -220,7 +220,7 @@ func TestList_iterate(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			todo := todoDefinition.List(tx)
+			todo := todo.Tx(tx)
 
 			var count int
 			next, err := todo.Iterate(nil, false, func(_ string, _ time.Time) (bool, error) {
@@ -239,7 +239,7 @@ func TestList_iterateValues(t *testing.T) {
 
 	t.Run("forward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			todo := todoDefinition.List(tx)
+			todo := todo.Tx(tx)
 
 			var i int
 			next, err := todo.IterateValues(nil, false, func(v string) (bool, error) {
@@ -255,7 +255,7 @@ func TestList_iterateValues(t *testing.T) {
 
 	t.Run("forward partial", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			todo := todoDefinition.List(tx)
+			todo := todo.Tx(tx)
 
 			var i int
 			next, err := todo.IterateValues(nil, false, func(v string) (bool, error) {
@@ -283,7 +283,7 @@ func TestList_iterateValues(t *testing.T) {
 
 	t.Run("backward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			todo := todoDefinition.List(tx)
+			todo := todo.Tx(tx)
 
 			var i int
 			next, err := todo.IterateValues(nil, true, func(v string) (bool, error) {
@@ -299,7 +299,7 @@ func TestList_iterateValues(t *testing.T) {
 
 	t.Run("backward partial", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			todo := todoDefinition.List(tx)
+			todo := todo.Tx(tx)
 
 			var i int
 			next, err := todo.IterateValues(nil, true, func(v string) (bool, error) {
@@ -329,7 +329,7 @@ func TestList_iterateValues(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			todo := todoDefinition.List(tx)
+			todo := todo.Tx(tx)
 
 			var count int
 			next, err := todo.IterateValues(nil, false, func(_ string) (bool, error) {
@@ -348,7 +348,7 @@ func TestList_size(t *testing.T) {
 
 	t.Run("full", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			todo := todoDefinition.List(tx)
+			todo := todo.Tx(tx)
 
 			size, err := todo.Size()
 			assertErrorFail(t, "", err, nil)
@@ -360,7 +360,7 @@ func TestList_size(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			todo := todoDefinition.List(tx)
+			todo := todo.Tx(tx)
 
 			size, err := todo.Size()
 			assertErrorFail(t, "", err, nil)
@@ -374,7 +374,7 @@ func TestList_page(t *testing.T) {
 
 	t.Run("forward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			todo := todoDefinition.List(tx)
+			todo := todo.Tx(tx)
 
 			_, _, _, err := todo.Page(-1, 3, false)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
@@ -404,7 +404,7 @@ func TestList_page(t *testing.T) {
 
 	t.Run("backward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			todo := todoDefinition.List(tx)
+			todo := todo.Tx(tx)
 
 			_, _, _, err := todo.Page(-1, 3, true)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
@@ -436,7 +436,7 @@ func TestList_page(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			todo := todoDefinition.List(tx)
+			todo := todo.Tx(tx)
 
 			page, totalElements, totalPages, err := todo.Page(1, 3, true)
 			assertErrorFail(t, "", err, nil)
@@ -452,7 +452,7 @@ func TestList_pageOfValues(t *testing.T) {
 
 	t.Run("forward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			todo := todoDefinition.List(tx)
+			todo := todo.Tx(tx)
 
 			_, _, _, err := todo.PageOfValues(-1, 3, false)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
@@ -482,7 +482,7 @@ func TestList_pageOfValues(t *testing.T) {
 
 	t.Run("backward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			todo := todoDefinition.List(tx)
+			todo := todo.Tx(tx)
 
 			_, _, _, err := todo.PageOfValues(-1, 3, true)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
@@ -514,7 +514,7 @@ func TestList_pageOfValues(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			todo := todoDefinition.List(tx)
+			todo := todo.Tx(tx)
 
 			page, totalElements, totalPages, err := todo.PageOfValues(1, 3, true)
 			assertErrorFail(t, "", err, nil)
@@ -531,7 +531,7 @@ func TestList_ErrNotFound(t *testing.T) {
 	notFoundValue := "missing"
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		todo := todoDefinition.List(tx)
+		todo := todo.Tx(tx)
 
 		v, err := todo.OrderBy(notFoundValue)
 		assertError(t, "", err, boltron.ErrNotFound)
@@ -549,14 +549,14 @@ func TestList_ErrNotFound(t *testing.T) {
 	})
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		todo := todoDefinition.List(tx)
+		todo := todo.Tx(tx)
 
 		err := todo.Add("v", time.Now())
 		assertErrorFail(t, "", err, nil)
 	})
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		todo := todoDefinition.List(tx)
+		todo := todo.Tx(tx)
 
 		v, err := todo.OrderBy(notFoundValue)
 		assertError(t, "", err, boltron.ErrNotFound)
@@ -572,7 +572,7 @@ func TestList_customErrNotFound(t *testing.T) {
 
 	errNotFoundCustom := errors.New("custom not found error")
 
-	customTodoDefinition := boltron.NewListDefinition(
+	customTodo := boltron.NewList(
 		"todo",
 		boltron.StringEncoding,
 		boltron.TimeEncoding,
@@ -584,7 +584,7 @@ func TestList_customErrNotFound(t *testing.T) {
 	notFoundValue := "missing"
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		todo := customTodoDefinition.List(tx)
+		todo := customTodo.Tx(tx)
 
 		v, err := todo.OrderBy(notFoundValue)
 		assertError(t, "", err, errNotFoundCustom)
@@ -602,14 +602,14 @@ func TestList_customErrNotFound(t *testing.T) {
 	})
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		todo := customTodoDefinition.List(tx)
+		todo := customTodo.Tx(tx)
 
 		err := todo.Add("v", time.Now())
 		assertErrorFail(t, "", err, nil)
 	})
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		todo := customTodoDefinition.List(tx)
+		todo := customTodo.Tx(tx)
 
 		v, err := todo.OrderBy(notFoundValue)
 		assertError(t, "", err, errNotFoundCustom)
@@ -626,7 +626,7 @@ func newTodoDB(t *testing.T) *bolt.DB {
 	db := newDB(t)
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		todo := todoDefinition.List(tx)
+		todo := todo.Tx(tx)
 
 		for _, n := range testTodo {
 			err := todo.Add(n.Value, n.Time)

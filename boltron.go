@@ -6,12 +6,11 @@
 // Package boltron provides type safe generic constructs to design data models
 // using BoltDB embedded key value store.
 //
-// Definitions statically define encodings and options for other types to be
+// Types statically define encodings and options for other types to be
 // serialized and they provide methods to access and modify serialized data
 // within bolt transactions.
 //
-// There are three basic types with their definitions: Collection, Association
-// and List.
+// There are three basic types: Collection, Association and List.
 //
 // One complex types Collections, Associations and Lists provides methods to
 // manage dynamically created collections and lists.

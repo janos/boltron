@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	electionsDefinition = boltron.NewCollectionsDefinition(
+	elections = boltron.NewCollections(
 		"elections",
 		boltron.Uint64BinaryEncoding,       // election id
 		boltron.StringEncoding,             // voter id
@@ -81,7 +81,7 @@ func TestCollections(t *testing.T) {
 	db := electionsDB(t)
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		elections := electionsDefinition.Collections(tx)
+		elections := elections.Tx(tx)
 
 		for _, e := range testElections {
 			has, err := elections.HasCollection(e.Election)
@@ -113,7 +113,7 @@ func TestCollections(t *testing.T) {
 	deletedKey := "edit"
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		elections := electionsDefinition.Collections(tx)
+		elections := elections.Tx(tx)
 
 		err := elections.DeleteKey("unknown", true)
 		assertErrorFail(t, "", err, boltron.ErrNotFound)
@@ -125,7 +125,7 @@ func TestCollections(t *testing.T) {
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
 		deletedKeyIndirectly := "alice"
 
-		elections := electionsDefinition.Collections(tx)
+		elections := elections.Tx(tx)
 
 		election, _, err := elections.Collection(0)
 		assertErrorFail(t, "", err, nil)
@@ -155,7 +155,7 @@ func TestCollections(t *testing.T) {
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
 
-		elections := electionsDefinition.Collections(tx)
+		elections := elections.Tx(tx)
 
 		election, _, err := elections.Collection(6)
 		assertErrorFail(t, "", err, nil)
@@ -182,7 +182,7 @@ func TestCollections(t *testing.T) {
 	})
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		elections := electionsDefinition.Collections(tx)
+		elections := elections.Tx(tx)
 
 		for _, e := range testElectionsCollections {
 			has, err := elections.HasCollection(e)
@@ -212,7 +212,7 @@ func TestCollections(t *testing.T) {
 	deletedCollection := uint64(5)
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		elections := electionsDefinition.Collections(tx)
+		elections := elections.Tx(tx)
 
 		err := elections.DeleteCollection(100, true)
 		assertErrorFail(t, "", err, boltron.ErrNotFound)
@@ -222,7 +222,7 @@ func TestCollections(t *testing.T) {
 	})
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		elections := electionsDefinition.Collections(tx)
+		elections := elections.Tx(tx)
 
 		for _, e := range testElections {
 			has, err := elections.HasCollection(e.Election)
@@ -245,7 +245,7 @@ func TestCollections_iterateCollections(t *testing.T) {
 
 	t.Run("forward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			elections := electionsDefinition.Collections(tx)
+			elections := elections.Tx(tx)
 
 			var i int
 			next, err := elections.IterateCollections(nil, false, func(v uint64) (bool, error) {
@@ -261,7 +261,7 @@ func TestCollections_iterateCollections(t *testing.T) {
 
 	t.Run("forward partial", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			elections := electionsDefinition.Collections(tx)
+			elections := elections.Tx(tx)
 
 			var i int
 			next, err := elections.IterateCollections(nil, false, func(v uint64) (bool, error) {
@@ -288,7 +288,7 @@ func TestCollections_iterateCollections(t *testing.T) {
 
 	t.Run("backward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			elections := electionsDefinition.Collections(tx)
+			elections := elections.Tx(tx)
 
 			var i int
 			next, err := elections.IterateCollections(nil, true, func(v uint64) (bool, error) {
@@ -304,7 +304,7 @@ func TestCollections_iterateCollections(t *testing.T) {
 
 	t.Run("backward partial", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			elections := electionsDefinition.Collections(tx)
+			elections := elections.Tx(tx)
 
 			var i int
 			next, err := elections.IterateCollections(nil, true, func(v uint64) (bool, error) {
@@ -333,7 +333,7 @@ func TestCollections_iterateCollections(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			elections := electionsDefinition.Collections(tx)
+			elections := elections.Tx(tx)
 
 			var count int
 			next, err := elections.IterateCollections(nil, false, func(_ uint64) (bool, error) {
@@ -352,7 +352,7 @@ func TestCollections_size(t *testing.T) {
 
 	t.Run("full", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			elections := electionsDefinition.Collections(tx)
+			elections := elections.Tx(tx)
 
 			size, err := elections.Size()
 			assertErrorFail(t, "", err, nil)
@@ -364,7 +364,7 @@ func TestCollections_size(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			elections := electionsDefinition.Collections(tx)
+			elections := elections.Tx(tx)
 
 			size, err := elections.Size()
 			assertErrorFail(t, "", err, nil)
@@ -378,7 +378,7 @@ func TestCollections_pageOfCollections(t *testing.T) {
 
 	t.Run("forward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			elections := electionsDefinition.Collections(tx)
+			elections := elections.Tx(tx)
 
 			_, _, _, err := elections.PageOfCollections(-1, 3, false)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
@@ -402,7 +402,7 @@ func TestCollections_pageOfCollections(t *testing.T) {
 
 	t.Run("backward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			elections := electionsDefinition.Collections(tx)
+			elections := elections.Tx(tx)
 
 			_, _, _, err := elections.PageOfCollections(-1, 3, false)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
@@ -428,7 +428,7 @@ func TestCollections_pageOfCollections(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			elections := electionsDefinition.Collections(tx)
+			elections := elections.Tx(tx)
 
 			page, totalElements, totalPages, err := elections.PageOfCollections(1, 3, true)
 			assertErrorFail(t, "", err, nil)
@@ -444,7 +444,7 @@ func TestCollections_iterateCollectionsWithKey(t *testing.T) {
 
 	t.Run("forward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			elections := electionsDefinition.Collections(tx)
+			elections := elections.Tx(tx)
 
 			var i int
 			next, err := elections.IterateCollectionsWithKey("alice", nil, false, func(v uint64) (bool, error) {
@@ -460,7 +460,7 @@ func TestCollections_iterateCollectionsWithKey(t *testing.T) {
 
 	t.Run("forward partial", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			elections := electionsDefinition.Collections(tx)
+			elections := elections.Tx(tx)
 
 			var i int
 			next, err := elections.IterateCollectionsWithKey("alice", nil, false, func(v uint64) (bool, error) {
@@ -487,7 +487,7 @@ func TestCollections_iterateCollectionsWithKey(t *testing.T) {
 
 	t.Run("backward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			elections := electionsDefinition.Collections(tx)
+			elections := elections.Tx(tx)
 
 			var i int
 			next, err := elections.IterateCollectionsWithKey("alice", nil, true, func(v uint64) (bool, error) {
@@ -503,7 +503,7 @@ func TestCollections_iterateCollectionsWithKey(t *testing.T) {
 
 	t.Run("backward partial", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			elections := electionsDefinition.Collections(tx)
+			elections := elections.Tx(tx)
 
 			var i int
 			next, err := elections.IterateCollectionsWithKey("alice", nil, true, func(v uint64) (bool, error) {
@@ -532,7 +532,7 @@ func TestCollections_iterateCollectionsWithKey(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			elections := electionsDefinition.Collections(tx)
+			elections := elections.Tx(tx)
 
 			var count int
 			next, err := elections.IterateCollectionsWithKey("alice", nil, false, func(_ uint64) (bool, error) {
@@ -545,7 +545,7 @@ func TestCollections_iterateCollectionsWithKey(t *testing.T) {
 		})
 
 		dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-			elections := electionsDefinition.Collections(tx)
+			elections := elections.Tx(tx)
 
 			collection, exists, err := elections.Collection(0)
 			assertErrorFail(t, "", err, nil)
@@ -557,7 +557,7 @@ func TestCollections_iterateCollectionsWithKey(t *testing.T) {
 		})
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			elections := electionsDefinition.Collections(tx)
+			elections := elections.Tx(tx)
 
 			var count int
 			next, err := elections.IterateCollectionsWithKey("alice", nil, false, func(_ uint64) (bool, error) {
@@ -576,7 +576,7 @@ func TestCollections_pageOfCollectionsWithKey(t *testing.T) {
 
 	t.Run("forward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			elections := electionsDefinition.Collections(tx)
+			elections := elections.Tx(tx)
 
 			_, _, _, err := elections.PageOfCollectionsWithKey("alice", -1, 3, false)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
@@ -600,7 +600,7 @@ func TestCollections_pageOfCollectionsWithKey(t *testing.T) {
 
 	t.Run("backward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			elections := electionsDefinition.Collections(tx)
+			elections := elections.Tx(tx)
 
 			_, _, _, err := elections.PageOfCollectionsWithKey("alice", -1, 3, false)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
@@ -626,7 +626,7 @@ func TestCollections_pageOfCollectionsWithKey(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			elections := electionsDefinition.Collections(tx)
+			elections := elections.Tx(tx)
 
 			page, totalElements, totalPages, err := elections.PageOfCollectionsWithKey("alice", 1, 3, true)
 			assertErrorFail(t, "", err, nil)
@@ -636,7 +636,7 @@ func TestCollections_pageOfCollectionsWithKey(t *testing.T) {
 		})
 
 		dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-			elections := electionsDefinition.Collections(tx)
+			elections := elections.Tx(tx)
 
 			collection, exists, err := elections.Collection(0)
 			assertErrorFail(t, "", err, nil)
@@ -648,7 +648,7 @@ func TestCollections_pageOfCollectionsWithKey(t *testing.T) {
 		})
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			elections := electionsDefinition.Collections(tx)
+			elections := elections.Tx(tx)
 
 			page, totalElements, totalPages, err := elections.PageOfCollectionsWithKey("alice", 1, 3, true)
 			assertErrorFail(t, "", err, nil)
@@ -664,7 +664,7 @@ func TestCollections_iterateKeys(t *testing.T) {
 
 	t.Run("forward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			elections := electionsDefinition.Collections(tx)
+			elections := elections.Tx(tx)
 
 			var i int
 			next, err := elections.IterateKeys(nil, false, func(v string) (bool, error) {
@@ -679,7 +679,7 @@ func TestCollections_iterateKeys(t *testing.T) {
 
 	t.Run("forward partial", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			elections := electionsDefinition.Collections(tx)
+			elections := elections.Tx(tx)
 
 			var i int
 			next, err := elections.IterateKeys(nil, false, func(v string) (bool, error) {
@@ -705,7 +705,7 @@ func TestCollections_iterateKeys(t *testing.T) {
 
 	t.Run("backward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			elections := electionsDefinition.Collections(tx)
+			elections := elections.Tx(tx)
 
 			var i int
 			next, err := elections.IterateKeys(nil, true, func(v string) (bool, error) {
@@ -720,7 +720,7 @@ func TestCollections_iterateKeys(t *testing.T) {
 
 	t.Run("backward partial", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			elections := electionsDefinition.Collections(tx)
+			elections := elections.Tx(tx)
 
 			var i int
 			next, err := elections.IterateKeys(nil, true, func(v string) (bool, error) {
@@ -748,7 +748,7 @@ func TestCollections_iterateKeys(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			elections := electionsDefinition.Collections(tx)
+			elections := elections.Tx(tx)
 
 			var count int
 			next, err := elections.IterateKeys(nil, false, func(_ string) (bool, error) {
@@ -767,7 +767,7 @@ func TestCollections_pageOfKeys(t *testing.T) {
 
 	t.Run("forward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			elections := electionsDefinition.Collections(tx)
+			elections := elections.Tx(tx)
 
 			_, _, _, err := elections.PageOfKeys(-1, 3, false)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
@@ -803,7 +803,7 @@ func TestCollections_pageOfKeys(t *testing.T) {
 
 	t.Run("backward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			elections := electionsDefinition.Collections(tx)
+			elections := elections.Tx(tx)
 
 			_, _, _, err := elections.PageOfKeys(-1, 3, false)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
@@ -841,7 +841,7 @@ func TestCollections_pageOfKeys(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			elections := electionsDefinition.Collections(tx)
+			elections := elections.Tx(tx)
 
 			page, totalElements, totalPages, err := elections.PageOfKeys(1, 3, true)
 			assertErrorFail(t, "", err, nil)
@@ -856,7 +856,7 @@ func TestCollections_ErrCollectionNotFound_and_ErrKeyNotFound(t *testing.T) {
 	db := newDB(t)
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		elections := electionsDefinition.Collections(tx)
+		elections := elections.Tx(tx)
 
 		_, exists, err := elections.Collection(0)
 		assertError(t, "", err, nil)
@@ -884,7 +884,7 @@ func TestCollections_ErrCollectionNotFound_and_ErrKeyNotFound(t *testing.T) {
 	})
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		elections := electionsDefinition.Collections(tx)
+		elections := elections.Tx(tx)
 
 		collection, exists, err := elections.Collection(1)
 		assertErrorFail(t, "", err, nil)
@@ -896,7 +896,7 @@ func TestCollections_ErrCollectionNotFound_and_ErrKeyNotFound(t *testing.T) {
 	})
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		elections := electionsDefinition.Collections(tx)
+		elections := elections.Tx(tx)
 
 		_, exists, err := elections.Collection(0)
 		assertError(t, "", err, nil)
@@ -929,7 +929,7 @@ func TestCollections_customErrCollectionNotFound_and_customErrKeyNotFound(t *tes
 	errCollectionNotFoundCustom := errors.New("custom collection not found error")
 	errKeyNotFoundCustom := errors.New("custom key not found error")
 
-	customElectionsDefinition := boltron.NewCollectionsDefinition(
+	customElections := boltron.NewCollections(
 		"elections",
 		boltron.Uint64BinaryEncoding,       // election id
 		boltron.StringEncoding,             // voter id
@@ -943,7 +943,7 @@ func TestCollections_customErrCollectionNotFound_and_customErrKeyNotFound(t *tes
 	db := newDB(t)
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		elections := customElectionsDefinition.Collections(tx)
+		elections := customElections.Tx(tx)
 
 		_, exists, err := elections.Collection(0)
 		assertError(t, "", err, nil)
@@ -971,7 +971,7 @@ func TestCollections_customErrCollectionNotFound_and_customErrKeyNotFound(t *tes
 	})
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		elections := customElectionsDefinition.Collections(tx)
+		elections := customElections.Tx(tx)
 
 		collection, exists, err := elections.Collection(1)
 		assertErrorFail(t, "", err, nil)
@@ -983,7 +983,7 @@ func TestCollections_customErrCollectionNotFound_and_customErrKeyNotFound(t *tes
 	})
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		elections := customElectionsDefinition.Collections(tx)
+		elections := customElections.Tx(tx)
 
 		_, exists, err := elections.Collection(0)
 		assertError(t, "", err, nil)
@@ -1013,7 +1013,7 @@ func TestCollections_customErrCollectionNotFound_and_customErrKeyNotFound(t *tes
 
 func TestCollections_uniqueKeys(t *testing.T) {
 
-	customElectionsDefinition := boltron.NewCollectionsDefinition(
+	customElections := boltron.NewCollections(
 		"elections",
 		boltron.Uint64BinaryEncoding,       // election id
 		boltron.StringEncoding,             // voter id
@@ -1026,7 +1026,7 @@ func TestCollections_uniqueKeys(t *testing.T) {
 	db := newDB(t)
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		elections := customElectionsDefinition.Collections(tx)
+		elections := customElections.Tx(tx)
 
 		election0, exists, err := elections.Collection(0)
 		assertErrorFail(t, "", err, nil)
@@ -1050,7 +1050,7 @@ func TestCollections_uniqueKeys_customErrKeyExists(t *testing.T) {
 
 	errKeyExistsCustom := errors.New("custom key exists error")
 
-	customElectionsDefinition := boltron.NewCollectionsDefinition(
+	customElections := boltron.NewCollections(
 		"elections",
 		boltron.Uint64BinaryEncoding,       // election id
 		boltron.StringEncoding,             // voter id
@@ -1064,7 +1064,7 @@ func TestCollections_uniqueKeys_customErrKeyExists(t *testing.T) {
 	db := newDB(t)
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		elections := customElectionsDefinition.Collections(tx)
+		elections := customElections.Tx(tx)
 
 		election0, exists, err := elections.Collection(0)
 		assertErrorFail(t, "", err, nil)
@@ -1090,7 +1090,7 @@ func electionsDB(t testing.TB) *bolt.DB {
 	db := newDB(t)
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		elections := electionsDefinition.Collections(tx)
+		elections := elections.Tx(tx)
 
 		elections0, exists, err := elections.Collection(0)
 		assertErrorFail(t, "", err, nil)

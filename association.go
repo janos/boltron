@@ -28,9 +28,9 @@ var (
 	ErrRightExists = errors.New("boltron: right value exists")
 )
 
-// AssociationDefinition defines one-to-one relation between values named left
+// Association defines one-to-one relation between values named left
 // and right. The relation is unique.
-type AssociationDefinition[L, R any] struct {
+type Association[L, R any] struct {
 	bucketPathLeft   [][]byte
 	bucketPathRight  [][]byte
 	leftEncoding     Encoding[L]
@@ -58,18 +58,18 @@ type AssociationOptions struct {
 	ErrRightExists error
 }
 
-// NewAssociationDefinition constructs a new AssociationDefinition with a unique
+// NewAssociation constructs a new Association with a unique
 // name and left and right values encodings.
-func NewAssociationDefinition[L, R any](
+func NewAssociation[L, R any](
 	name string,
 	leftEncoding Encoding[L],
 	rightEncoding Encoding[R],
 	o *AssociationOptions,
-) *AssociationDefinition[L, R] {
+) *Association[L, R] {
 	if o == nil {
 		o = new(AssociationOptions)
 	}
-	return &AssociationDefinition[L, R]{
+	return &Association[L, R]{
 		bucketPathLeft:   bucketPath("boltron: association: " + name + " left"),
 		bucketPathRight:  bucketPath("boltron: association: " + name + " right"),
 		leftEncoding:     leftEncoding,
@@ -82,56 +82,56 @@ func NewAssociationDefinition[L, R any](
 	}
 }
 
-// Association returns an Association that has access to the stored data through
-// the bolt transaction.
-func (d *AssociationDefinition[L, R]) Association(tx *bolt.Tx) *Association[L, R] {
-	return &Association[L, R]{
-		tx:         tx,
-		definition: d,
+// Tx returns an Association transaction with access to the stored data
+// through the bolt transaction.
+func (a *Association[L, R]) Tx(tx *bolt.Tx) *AssociationTx[L, R] {
+	return &AssociationTx[L, R]{
+		tx:          tx,
+		association: a,
 	}
 }
 
-// Association provides methods to access and change relations.
-type Association[L, R any] struct {
+// AssociationTx provides methods to access and change relations.
+type AssociationTx[L, R any] struct {
 	tx               *bolt.Tx
 	leftBucketCache  *bolt.Bucket
 	rightBucketCache *bolt.Bucket
-	definition       *AssociationDefinition[L, R]
+	association      *Association[L, R]
 }
 
-func (a *Association[L, R]) leftBucket(create bool) (*bolt.Bucket, error) {
+func (a *AssociationTx[L, R]) leftBucket(create bool) (*bolt.Bucket, error) {
 	if a.leftBucketCache != nil {
 		return a.leftBucketCache, nil
 	}
-	bucket, err := deepBucket(a.tx, create, a.definition.bucketPathLeft...)
+	bucket, err := deepBucket(a.tx, create, a.association.bucketPathLeft...)
 	if err != nil {
 		return nil, err
 	}
-	if a.definition.fillPercent > 0 && bucket != nil {
-		bucket.FillPercent = a.definition.fillPercent
+	if a.association.fillPercent > 0 && bucket != nil {
+		bucket.FillPercent = a.association.fillPercent
 	}
 	a.leftBucketCache = bucket
 	return bucket, nil
 }
 
-func (a *Association[L, R]) rightBucket(create bool) (*bolt.Bucket, error) {
+func (a *AssociationTx[L, R]) rightBucket(create bool) (*bolt.Bucket, error) {
 	if a.rightBucketCache != nil {
 		return a.rightBucketCache, nil
 	}
-	bucket, err := deepBucket(a.tx, create, a.definition.bucketPathRight...)
+	bucket, err := deepBucket(a.tx, create, a.association.bucketPathRight...)
 	if err != nil {
 		return nil, err
 	}
-	if a.definition.fillPercent > 0 && bucket != nil {
-		bucket.FillPercent = a.definition.fillPercent
+	if a.association.fillPercent > 0 && bucket != nil {
+		bucket.FillPercent = a.association.fillPercent
 	}
 	a.rightBucketCache = bucket
 	return bucket, nil
 }
 
 // HasLeft returns true if the left already exists in the database.
-func (a *Association[L, R]) HasLeft(left L) (bool, error) {
-	l, err := a.definition.leftEncoding.Encode(left)
+func (a *AssociationTx[L, R]) HasLeft(left L) (bool, error) {
+	l, err := a.association.leftEncoding.Encode(left)
 	if err != nil {
 		return false, fmt.Errorf("encode left: %w", err)
 	}
@@ -149,8 +149,8 @@ func (a *Association[L, R]) HasLeft(left L) (bool, error) {
 }
 
 // HasRight returns true if the right value already exists in the database.
-func (a *Association[L, R]) HasRight(right R) (bool, error) {
-	r, err := a.definition.rightEncoding.Encode(right)
+func (a *AssociationTx[L, R]) HasRight(right R) (bool, error) {
+	r, err := a.association.rightEncoding.Encode(right)
 	if err != nil {
 		return false, fmt.Errorf("encode right: %w", err)
 	}
@@ -169,8 +169,8 @@ func (a *Association[L, R]) HasRight(right R) (bool, error) {
 
 // Left returns left value associated with the given right value. If value does
 // not exist, ErrNotFound is returned.
-func (a *Association[L, R]) Left(right R) (left L, err error) {
-	r, err := a.definition.rightEncoding.Encode(right)
+func (a *AssociationTx[L, R]) Left(right R) (left L, err error) {
+	r, err := a.association.rightEncoding.Encode(right)
 	if err != nil {
 		return left, fmt.Errorf("encode right: %w", err)
 	}
@@ -180,14 +180,14 @@ func (a *Association[L, R]) Left(right R) (left L, err error) {
 		return left, fmt.Errorf("right bucket: %w", err)
 	}
 	if rightBucket == nil {
-		return left, a.definition.errLeftNotFound
+		return left, a.association.errLeftNotFound
 	}
 
 	l := rightBucket.Get(r)
 	if l == nil {
-		return left, a.definition.errLeftNotFound
+		return left, a.association.errLeftNotFound
 	}
-	left, err = a.definition.leftEncoding.Decode(l)
+	left, err = a.association.leftEncoding.Decode(l)
 	if err != nil {
 		return left, fmt.Errorf("decode left: %w", err)
 	}
@@ -196,8 +196,8 @@ func (a *Association[L, R]) Left(right R) (left L, err error) {
 
 // Right returns right value associated with the given left value. If value does
 // not exist, ErrNotFound is returned.
-func (a *Association[L, R]) Right(left L) (right R, err error) {
-	l, err := a.definition.leftEncoding.Encode(left)
+func (a *AssociationTx[L, R]) Right(left L) (right R, err error) {
+	l, err := a.association.leftEncoding.Encode(left)
 	if err != nil {
 		return right, fmt.Errorf("encode left: %w", err)
 	}
@@ -206,13 +206,13 @@ func (a *Association[L, R]) Right(left L) (right R, err error) {
 		return right, fmt.Errorf("left bucket: %w", err)
 	}
 	if leftBucket == nil {
-		return right, a.definition.errRightNotFound
+		return right, a.association.errRightNotFound
 	}
 	r := leftBucket.Get(l)
 	if r == nil {
-		return right, a.definition.errRightNotFound
+		return right, a.association.errRightNotFound
 	}
-	right, err = a.definition.rightEncoding.Decode(r)
+	right, err = a.association.rightEncoding.Decode(r)
 	if err != nil {
 		return right, fmt.Errorf("decode right: %w", err)
 	}
@@ -222,8 +222,8 @@ func (a *Association[L, R]) Right(left L) (right R, err error) {
 // Set saves the relation between the left and right values. If left value
 // already exists, configured ErrLeftExists is returned, if right value exists,
 // configured ErrValueExists is returned.
-func (a *Association[L, R]) Set(left L, right R) error {
-	l, err := a.definition.leftEncoding.Encode(left)
+func (a *AssociationTx[L, R]) Set(left L, right R) error {
+	l, err := a.association.leftEncoding.Encode(left)
 	if err != nil {
 		return fmt.Errorf("encode left: %w", err)
 	}
@@ -234,7 +234,7 @@ func (a *Association[L, R]) Set(left L, right R) error {
 
 	currentRight := leftBucket.Get(l)
 
-	r, err := a.definition.rightEncoding.Encode(right)
+	r, err := a.association.rightEncoding.Encode(right)
 	if err != nil {
 		return fmt.Errorf("encode right: %w", err)
 	}
@@ -251,11 +251,11 @@ func (a *Association[L, R]) Set(left L, right R) error {
 	}
 
 	if currentLeft != nil {
-		return a.definition.errRightExists
+		return a.association.errRightExists
 	}
 
 	if currentRight != nil {
-		return a.definition.errLeftExists
+		return a.association.errLeftExists
 	}
 
 	if err := leftBucket.Put(l, r); err != nil {
@@ -265,8 +265,8 @@ func (a *Association[L, R]) Set(left L, right R) error {
 		return fmt.Errorf("put right: %w", err)
 	}
 
-	if a.definition.setCallback != nil {
-		if err := a.definition.setCallback(l); err != nil {
+	if a.association.setCallback != nil {
+		if err := a.association.setCallback(l); err != nil {
 			return fmt.Errorf("set callback: %w", err)
 		}
 	}
@@ -277,8 +277,8 @@ func (a *Association[L, R]) Set(left L, right R) error {
 // DeleteByLeft removes the relation that contains the provided left value. If
 // ensure flag is set to true and the value does not exist, configured
 // ErrNotFound is returned.
-func (a *Association[L, R]) DeleteByLeft(left L, ensure bool) error {
-	l, err := a.definition.leftEncoding.Encode(left)
+func (a *AssociationTx[L, R]) DeleteByLeft(left L, ensure bool) error {
+	l, err := a.association.leftEncoding.Encode(left)
 	if err != nil {
 		return fmt.Errorf("encode left: %w", err)
 	}
@@ -290,7 +290,7 @@ func (a *Association[L, R]) DeleteByLeft(left L, ensure bool) error {
 
 	if leftBucket == nil {
 		if ensure {
-			return a.definition.errLeftNotFound
+			return a.association.errLeftNotFound
 		}
 		return nil
 	}
@@ -298,7 +298,7 @@ func (a *Association[L, R]) DeleteByLeft(left L, ensure bool) error {
 	r := leftBucket.Get(l)
 	if r == nil {
 		if ensure {
-			return a.definition.errLeftNotFound
+			return a.association.errLeftNotFound
 		}
 		return nil
 	}
@@ -314,7 +314,7 @@ func (a *Association[L, R]) DeleteByLeft(left L, ensure bool) error {
 
 	if rightBucket == nil {
 		if ensure {
-			return a.definition.errLeftNotFound
+			return a.association.errLeftNotFound
 		}
 		return nil
 	}
@@ -323,8 +323,8 @@ func (a *Association[L, R]) DeleteByLeft(left L, ensure bool) error {
 		return fmt.Errorf("delete right: %w", err)
 	}
 
-	if a.definition.deleteCallback != nil {
-		if err := a.definition.deleteCallback(l); err != nil {
+	if a.association.deleteCallback != nil {
+		if err := a.association.deleteCallback(l); err != nil {
 			return fmt.Errorf("delete callback: %w", err)
 		}
 	}
@@ -335,8 +335,8 @@ func (a *Association[L, R]) DeleteByLeft(left L, ensure bool) error {
 // DeleteByRight removes the relation that contains the provided right value. If
 // ensure flag is set to true and the value does not exist, ErrNotFound is
 // returned.
-func (a *Association[L, R]) DeleteByRight(right R, ensure bool) error {
-	r, err := a.definition.rightEncoding.Encode(right)
+func (a *AssociationTx[L, R]) DeleteByRight(right R, ensure bool) error {
+	r, err := a.association.rightEncoding.Encode(right)
 	if err != nil {
 		return fmt.Errorf("encode right: %w", err)
 	}
@@ -348,7 +348,7 @@ func (a *Association[L, R]) DeleteByRight(right R, ensure bool) error {
 
 	if rightBucket == nil {
 		if ensure {
-			return a.definition.errRightNotFound
+			return a.association.errRightNotFound
 		}
 		return nil
 	}
@@ -356,7 +356,7 @@ func (a *Association[L, R]) DeleteByRight(right R, ensure bool) error {
 	l := rightBucket.Get(r)
 	if l == nil {
 		if ensure {
-			return a.definition.errRightNotFound
+			return a.association.errRightNotFound
 		}
 		return nil
 	}
@@ -368,7 +368,7 @@ func (a *Association[L, R]) DeleteByRight(right R, ensure bool) error {
 
 	if leftBucket == nil {
 		if ensure {
-			return a.definition.errRightNotFound
+			return a.association.errRightNotFound
 		}
 		return nil
 	}
@@ -381,8 +381,8 @@ func (a *Association[L, R]) DeleteByRight(right R, ensure bool) error {
 		return fmt.Errorf("delete right: %w", err)
 	}
 
-	if a.definition.deleteCallback != nil {
-		if err := a.definition.deleteCallback(l); err != nil {
+	if a.association.deleteCallback != nil {
+		if err := a.association.deleteCallback(l); err != nil {
 			return fmt.Errorf("delete callback: %w", err)
 		}
 	}
@@ -393,7 +393,7 @@ func (a *Association[L, R]) DeleteByRight(right R, ensure bool) error {
 // Iterate iterates over associations in the lexicographical order of left
 // values. If the callback function f returns false, the iteration stops and the
 // next can be used to continue the iteration.
-func (a *Association[L, R]) Iterate(start *L, reverse bool, f func(L, R) (bool, error)) (next *L, err error) {
+func (a *AssociationTx[L, R]) Iterate(start *L, reverse bool, f func(L, R) (bool, error)) (next *L, err error) {
 	leftBucket, err := a.leftBucket(false)
 	if err != nil {
 		return nil, fmt.Errorf("left bucket: %w", err)
@@ -401,13 +401,13 @@ func (a *Association[L, R]) Iterate(start *L, reverse bool, f func(L, R) (bool, 
 	if leftBucket == nil {
 		return nil, nil
 	}
-	return iterateKeys(leftBucket, a.definition.leftEncoding, start, reverse, func(l, r []byte) (bool, error) {
-		left, err := a.definition.leftEncoding.Decode(l)
+	return iterateKeys(leftBucket, a.association.leftEncoding, start, reverse, func(l, r []byte) (bool, error) {
+		left, err := a.association.leftEncoding.Decode(l)
 		if err != nil {
 			return false, fmt.Errorf("decode left: %w", err)
 		}
 
-		right, err := a.definition.rightEncoding.Decode(r)
+		right, err := a.association.rightEncoding.Decode(r)
 		if err != nil {
 			return false, fmt.Errorf("decode right: %w", err)
 		}
@@ -419,7 +419,7 @@ func (a *Association[L, R]) Iterate(start *L, reverse bool, f func(L, R) (bool, 
 // IterateLeftValues iterates over left values in the lexicographical order of
 // left values. If the callback function f returns false, the iteration stops
 // and the next can be used to continue the iteration.
-func (a *Association[L, R]) IterateLeftValues(start *L, reverse bool, f func(L) (bool, error)) (next *L, err error) {
+func (a *AssociationTx[L, R]) IterateLeftValues(start *L, reverse bool, f func(L) (bool, error)) (next *L, err error) {
 	leftBucket, err := a.leftBucket(false)
 	if err != nil {
 		return nil, fmt.Errorf("left bucket: %w", err)
@@ -427,8 +427,8 @@ func (a *Association[L, R]) IterateLeftValues(start *L, reverse bool, f func(L) 
 	if leftBucket == nil {
 		return nil, nil
 	}
-	return iterateKeys(leftBucket, a.definition.leftEncoding, start, reverse, func(l, _ []byte) (bool, error) {
-		left, err := a.definition.leftEncoding.Decode(l)
+	return iterateKeys(leftBucket, a.association.leftEncoding, start, reverse, func(l, _ []byte) (bool, error) {
+		left, err := a.association.leftEncoding.Decode(l)
 		if err != nil {
 			return false, fmt.Errorf("decode left: %w", err)
 		}
@@ -440,7 +440,7 @@ func (a *Association[L, R]) IterateLeftValues(start *L, reverse bool, f func(L) 
 // IterateRightValues iterates over right values in the lexicographical order of
 // right values. If the callback function f returns false, the iteration stops
 // and the next can be used to continue the iteration.
-func (a *Association[L, R]) IterateRightValues(start *R, reverse bool, f func(R) (bool, error)) (next *R, err error) {
+func (a *AssociationTx[L, R]) IterateRightValues(start *R, reverse bool, f func(R) (bool, error)) (next *R, err error) {
 	rightBucket, err := a.rightBucket(false)
 	if err != nil {
 		return nil, fmt.Errorf("right bucket: %w", err)
@@ -448,8 +448,8 @@ func (a *Association[L, R]) IterateRightValues(start *R, reverse bool, f func(R)
 	if rightBucket == nil {
 		return nil, nil
 	}
-	return iterateKeys(rightBucket, a.definition.rightEncoding, start, reverse, func(r, _ []byte) (bool, error) {
-		right, err := a.definition.rightEncoding.Decode(r)
+	return iterateKeys(rightBucket, a.association.rightEncoding, start, reverse, func(r, _ []byte) (bool, error) {
+		right, err := a.association.rightEncoding.Decode(r)
 		if err != nil {
 			return false, fmt.Errorf("decode right: %w", err)
 		}
@@ -459,7 +459,7 @@ func (a *Association[L, R]) IterateRightValues(start *R, reverse bool, f func(R)
 }
 
 // Size returns the number of associations.
-func (a *Association[L, R]) Size() (int, error) {
+func (a *AssociationTx[L, R]) Size() (int, error) {
 	leftBucket, err := a.leftBucket(false)
 	if err != nil {
 		return 0, fmt.Errorf("left bucket: %w", err)
@@ -479,7 +479,7 @@ type AssociationElement[L, R any] struct {
 
 // Page returns at most a limit of elements of associations at the provided page
 // number.
-func (a *Association[L, R]) Page(number, limit int, reverse bool) (s []AssociationElement[L, R], totalElements, pages int, err error) {
+func (a *AssociationTx[L, R]) Page(number, limit int, reverse bool) (s []AssociationElement[L, R], totalElements, pages int, err error) {
 	leftBucket, err := a.leftBucket(false)
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("left bucket: %w", err)
@@ -488,12 +488,12 @@ func (a *Association[L, R]) Page(number, limit int, reverse bool) (s []Associati
 		return nil, 0, 0, nil
 	}
 	return page(leftBucket, false, number, limit, reverse, func(l, r []byte) (e AssociationElement[L, R], err error) {
-		left, err := a.definition.leftEncoding.Decode(l)
+		left, err := a.association.leftEncoding.Decode(l)
 		if err != nil {
 			return e, fmt.Errorf("left value: %w", err)
 		}
 
-		right, err := a.definition.rightEncoding.Decode(r)
+		right, err := a.association.rightEncoding.Decode(r)
 		if err != nil {
 			return e, fmt.Errorf("decode right: %w", err)
 		}
@@ -507,7 +507,7 @@ func (a *Association[L, R]) Page(number, limit int, reverse bool) (s []Associati
 
 // PageOfLeftValues returns at most a limit of left values at the provided page
 // number.
-func (a *Association[L, R]) PageOfLeftValues(number, limit int, reverse bool) (s []L, totalElements, pages int, err error) {
+func (a *AssociationTx[L, R]) PageOfLeftValues(number, limit int, reverse bool) (s []L, totalElements, pages int, err error) {
 	leftBucket, err := a.leftBucket(false)
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("left bucket: %w", err)
@@ -516,13 +516,13 @@ func (a *Association[L, R]) PageOfLeftValues(number, limit int, reverse bool) (s
 		return nil, 0, 0, nil
 	}
 	return page(leftBucket, false, number, limit, reverse, func(l, _ []byte) (left L, err error) {
-		return a.definition.leftEncoding.Decode(l)
+		return a.association.leftEncoding.Decode(l)
 	})
 }
 
 // PageOfRightValues returns at most a limit of right values at the provided
 // page number.
-func (a *Association[L, R]) PageOfRightValues(number, limit int, reverse bool) (s []R, totalElements, pages int, err error) {
+func (a *AssociationTx[L, R]) PageOfRightValues(number, limit int, reverse bool) (s []R, totalElements, pages int, err error) {
 	rightBucket, err := a.rightBucket(false)
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("right bucket: %w", err)
@@ -531,6 +531,6 @@ func (a *Association[L, R]) PageOfRightValues(number, limit int, reverse bool) (
 		return nil, 0, 0, nil
 	}
 	return page(rightBucket, false, number, limit, reverse, func(r, _ []byte) (right R, err error) {
-		return a.definition.rightEncoding.Decode(r)
+		return a.association.rightEncoding.Decode(r)
 	})
 }

@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	numbersDefinition = boltron.NewAssociationDefinition(
+	numbers = boltron.NewAssociation(
 		"numbers",
 		boltron.StringEncoding,
 		boltron.IntBase10Encoding,
@@ -57,7 +57,7 @@ func TestAssociation_singleRelation(t *testing.T) {
 	db := newDB(t)
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		numbers := numbersDefinition.Association(tx)
+		numbers := numbers.Tx(tx)
 
 		hasLeft, err := numbers.HasLeft("missing")
 		assertErrorFail(t, "", err, nil)
@@ -72,7 +72,7 @@ func TestAssociation_singleRelation(t *testing.T) {
 	})
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		numbers := numbersDefinition.Association(tx)
+		numbers := numbers.Tx(tx)
 
 		hasLeft, err := numbers.HasLeft(left)
 		assertErrorFail(t, "", err, nil)
@@ -100,7 +100,7 @@ func TestAssociation_singleRelation(t *testing.T) {
 	})
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		numbers := numbersDefinition.Association(tx)
+		numbers := numbers.Tx(tx)
 
 		err := numbers.DeleteByLeft(left, true)
 		assertErrorFail(t, "", err, nil)
@@ -115,7 +115,7 @@ func TestAssociation_singleRelation(t *testing.T) {
 	})
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		numbers := numbersDefinition.Association(tx)
+		numbers := numbers.Tx(tx)
 
 		hasLeft, err := numbers.HasLeft(left)
 		assertErrorFail(t, "", err, nil)
@@ -149,7 +149,7 @@ func TestAssociation_singleRelation(t *testing.T) {
 	})
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		numbers := numbersDefinition.Association(tx)
+		numbers := numbers.Tx(tx)
 
 		err := numbers.Set(left, right)
 		assertErrorFail(t, "", err, nil)
@@ -172,7 +172,7 @@ func TestAssociation_iterate(t *testing.T) {
 
 	t.Run("forward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			numbers := numbersDefinition.Association(tx)
+			numbers := numbers.Tx(tx)
 
 			var i int
 			next, err := numbers.Iterate(nil, false, func(l string, r int) (bool, error) {
@@ -189,7 +189,7 @@ func TestAssociation_iterate(t *testing.T) {
 
 	t.Run("forward partial", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			numbers := numbersDefinition.Association(tx)
+			numbers := numbers.Tx(tx)
 
 			var i int
 			next, err := numbers.Iterate(nil, false, func(l string, r int) (bool, error) {
@@ -218,7 +218,7 @@ func TestAssociation_iterate(t *testing.T) {
 
 	t.Run("backward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			numbers := numbersDefinition.Association(tx)
+			numbers := numbers.Tx(tx)
 
 			var i int
 			next, err := numbers.Iterate(nil, true, func(l string, r int) (bool, error) {
@@ -235,7 +235,7 @@ func TestAssociation_iterate(t *testing.T) {
 
 	t.Run("backward partial", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			numbers := numbersDefinition.Association(tx)
+			numbers := numbers.Tx(tx)
 
 			var i int
 			next, err := numbers.Iterate(nil, true, func(l string, r int) (bool, error) {
@@ -266,7 +266,7 @@ func TestAssociation_iterate(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			numbers := numbersDefinition.Association(tx)
+			numbers := numbers.Tx(tx)
 
 			var count int
 			next, err := numbers.Iterate(nil, false, func(_ string, _ int) (bool, error) {
@@ -285,7 +285,7 @@ func TestAssociation_iterateLeftValues(t *testing.T) {
 
 	t.Run("forward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			numbers := numbersDefinition.Association(tx)
+			numbers := numbers.Tx(tx)
 
 			var i int
 			next, err := numbers.IterateLeftValues(nil, false, func(l string) (bool, error) {
@@ -301,7 +301,7 @@ func TestAssociation_iterateLeftValues(t *testing.T) {
 
 	t.Run("forward partial", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			numbers := numbersDefinition.Association(tx)
+			numbers := numbers.Tx(tx)
 
 			var i int
 			next, err := numbers.IterateLeftValues(nil, false, func(l string) (bool, error) {
@@ -328,7 +328,7 @@ func TestAssociation_iterateLeftValues(t *testing.T) {
 
 	t.Run("backward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			numbers := numbersDefinition.Association(tx)
+			numbers := numbers.Tx(tx)
 
 			var i int
 			next, err := numbers.IterateLeftValues(nil, true, func(l string) (bool, error) {
@@ -344,7 +344,7 @@ func TestAssociation_iterateLeftValues(t *testing.T) {
 
 	t.Run("backward partial", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			numbers := numbersDefinition.Association(tx)
+			numbers := numbers.Tx(tx)
 
 			var i int
 			next, err := numbers.IterateLeftValues(nil, true, func(l string) (bool, error) {
@@ -373,7 +373,7 @@ func TestAssociation_iterateLeftValues(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			numbers := numbersDefinition.Association(tx)
+			numbers := numbers.Tx(tx)
 
 			var count int
 			next, err := numbers.IterateLeftValues(nil, false, func(_ string) (bool, error) {
@@ -392,7 +392,7 @@ func TestAssociation_iterateRightValues(t *testing.T) {
 
 	t.Run("forward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			numbers := numbersDefinition.Association(tx)
+			numbers := numbers.Tx(tx)
 
 			var i int
 			next, err := numbers.IterateRightValues(nil, false, func(r int) (bool, error) {
@@ -408,7 +408,7 @@ func TestAssociation_iterateRightValues(t *testing.T) {
 
 	t.Run("forward partial", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			numbers := numbersDefinition.Association(tx)
+			numbers := numbers.Tx(tx)
 
 			var i int
 			next, err := numbers.IterateRightValues(nil, false, func(r int) (bool, error) {
@@ -435,7 +435,7 @@ func TestAssociation_iterateRightValues(t *testing.T) {
 
 	t.Run("backward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			numbers := numbersDefinition.Association(tx)
+			numbers := numbers.Tx(tx)
 
 			var i int
 			next, err := numbers.IterateRightValues(nil, true, func(r int) (bool, error) {
@@ -451,7 +451,7 @@ func TestAssociation_iterateRightValues(t *testing.T) {
 
 	t.Run("backward partial", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			numbers := numbersDefinition.Association(tx)
+			numbers := numbers.Tx(tx)
 
 			var i int
 			next, err := numbers.IterateRightValues(nil, true, func(r int) (bool, error) {
@@ -480,7 +480,7 @@ func TestAssociation_iterateRightValues(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			numbers := numbersDefinition.Association(tx)
+			numbers := numbers.Tx(tx)
 
 			var count int
 			next, err := numbers.IterateRightValues(nil, false, func(_ int) (bool, error) {
@@ -499,7 +499,7 @@ func TestAssociation_size(t *testing.T) {
 
 	t.Run("full", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			numbers := numbersDefinition.Association(tx)
+			numbers := numbers.Tx(tx)
 
 			size, err := numbers.Size()
 			assertErrorFail(t, "", err, nil)
@@ -511,7 +511,7 @@ func TestAssociation_size(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			numbers := numbersDefinition.Association(tx)
+			numbers := numbers.Tx(tx)
 
 			size, err := numbers.Size()
 			assertErrorFail(t, "", err, nil)
@@ -525,7 +525,7 @@ func TestAssociation_page(t *testing.T) {
 
 	t.Run("forward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			numbers := numbersDefinition.Association(tx)
+			numbers := numbers.Tx(tx)
 
 			_, _, _, err := numbers.Page(-1, 3, false)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
@@ -555,7 +555,7 @@ func TestAssociation_page(t *testing.T) {
 
 	t.Run("backward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			numbers := numbersDefinition.Association(tx)
+			numbers := numbers.Tx(tx)
 
 			_, _, _, err := numbers.Page(-1, 3, true)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
@@ -587,7 +587,7 @@ func TestAssociation_page(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			numbers := numbersDefinition.Association(tx)
+			numbers := numbers.Tx(tx)
 
 			page, totalElements, totalPages, err := numbers.Page(1, 3, true)
 			assertErrorFail(t, "", err, nil)
@@ -603,7 +603,7 @@ func TestAssociation_pageOfLeftValues(t *testing.T) {
 
 	t.Run("forward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			numbers := numbersDefinition.Association(tx)
+			numbers := numbers.Tx(tx)
 
 			_, _, _, err := numbers.PageOfLeftValues(-1, 3, false)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
@@ -633,7 +633,7 @@ func TestAssociation_pageOfLeftValues(t *testing.T) {
 
 	t.Run("backward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			numbers := numbersDefinition.Association(tx)
+			numbers := numbers.Tx(tx)
 
 			_, _, _, err := numbers.PageOfLeftValues(-1, 3, true)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
@@ -665,7 +665,7 @@ func TestAssociation_pageOfLeftValues(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			numbers := numbersDefinition.Association(tx)
+			numbers := numbers.Tx(tx)
 
 			page, totalElements, totalPages, err := numbers.PageOfLeftValues(1, 3, true)
 			assertErrorFail(t, "", err, nil)
@@ -681,7 +681,7 @@ func TestAssociation_pageOfRightValues(t *testing.T) {
 
 	t.Run("forward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			numbers := numbersDefinition.Association(tx)
+			numbers := numbers.Tx(tx)
 
 			_, _, _, err := numbers.PageOfRightValues(-1, 3, false)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
@@ -711,7 +711,7 @@ func TestAssociation_pageOfRightValues(t *testing.T) {
 
 	t.Run("backward", func(t *testing.T) {
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			numbers := numbersDefinition.Association(tx)
+			numbers := numbers.Tx(tx)
 
 			_, _, _, err := numbers.PageOfRightValues(-1, 3, true)
 			assertErrorFail(t, "", err, boltron.ErrInvalidPageNumber)
@@ -743,7 +743,7 @@ func TestAssociation_pageOfRightValues(t *testing.T) {
 		db := newDB(t)
 
 		dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-			numbers := numbersDefinition.Association(tx)
+			numbers := numbers.Tx(tx)
 
 			page, totalElements, totalPages, err := numbers.PageOfRightValues(1, 3, true)
 			assertErrorFail(t, "", err, nil)
@@ -758,7 +758,7 @@ func TestAssociation_ErrNotFound(t *testing.T) {
 	db := newDB(t)
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		numbers := numbersDefinition.Association(tx)
+		numbers := numbers.Tx(tx)
 
 		l, err := numbers.Left(0)
 		assertError(t, "", err, boltron.ErrLeftNotFound)
@@ -790,14 +790,14 @@ func TestAssociation_ErrNotFound(t *testing.T) {
 	})
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		numbers := numbersDefinition.Association(tx)
+		numbers := numbers.Tx(tx)
 
 		err := numbers.Set("one", 1)
 		assertErrorFail(t, "", err, nil)
 	})
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		numbers := numbersDefinition.Association(tx)
+		numbers := numbers.Tx(tx)
 
 		l, err := numbers.Left(0)
 		assertError(t, "", err, boltron.ErrLeftNotFound)
@@ -834,7 +834,7 @@ func TestAssociation_customErrLeftNotFound_and_customErrRightNotFound(t *testing
 	errLeftNotFoundCustom := errors.New("custom left not found error")
 	errRightNotFoundCustom := errors.New("custom right not found error")
 
-	customNumbersDefinition := boltron.NewAssociationDefinition(
+	customNumbers := boltron.NewAssociation(
 		"numbers",
 		boltron.StringEncoding,
 		boltron.IntBase10Encoding,
@@ -847,7 +847,7 @@ func TestAssociation_customErrLeftNotFound_and_customErrRightNotFound(t *testing
 	db := newDB(t)
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		numbers := customNumbersDefinition.Association(tx)
+		numbers := customNumbers.Tx(tx)
 
 		l, err := numbers.Left(0)
 		assertError(t, "", err, errLeftNotFoundCustom)
@@ -879,14 +879,14 @@ func TestAssociation_customErrLeftNotFound_and_customErrRightNotFound(t *testing
 	})
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		numbers := customNumbersDefinition.Association(tx)
+		numbers := customNumbers.Tx(tx)
 
 		err := numbers.Set("one", 1)
 		assertErrorFail(t, "", err, nil)
 	})
 
 	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
-		numbers := customNumbersDefinition.Association(tx)
+		numbers := customNumbers.Tx(tx)
 
 		l, err := numbers.Left(0)
 		assertError(t, "", err, errLeftNotFoundCustom)
@@ -923,7 +923,7 @@ func TestAssociation_ErrKeyExists_and_ErrValueExists(t *testing.T) {
 	db := newDB(t)
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		numbers := numbersDefinition.Association(tx)
+		numbers := numbers.Tx(tx)
 
 		err := numbers.Set("one", 1)
 		assertErrorFail(t, "", err, nil)
@@ -945,7 +945,7 @@ func TestAssociation_customErrKeyExists_and_customErrValueExists(t *testing.T) {
 	errKeyExistsCustom := errors.New("custom key exists error")
 	errValueExistsCustom := errors.New("custom value exists error")
 
-	customNumbersDefinition := boltron.NewAssociationDefinition(
+	customNumbers := boltron.NewAssociation(
 		"numbers",
 		boltron.StringEncoding,
 		boltron.IntBase10Encoding,
@@ -958,7 +958,7 @@ func TestAssociation_customErrKeyExists_and_customErrValueExists(t *testing.T) {
 	db := newDB(t)
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		numbers := customNumbersDefinition.Association(tx)
+		numbers := customNumbers.Tx(tx)
 
 		err := numbers.Set("one", 1)
 		assertErrorFail(t, "", err, nil)
@@ -981,7 +981,7 @@ func newNumbersDB(t testing.TB) *bolt.DB {
 	db := newDB(t)
 
 	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
-		numbers := numbersDefinition.Association(tx)
+		numbers := numbers.Tx(tx)
 
 		for _, n := range testNumbers {
 			err := numbers.Set(n.L, n.R)
