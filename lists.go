@@ -364,16 +364,17 @@ func (l *ListsTx[K, V, O]) DeleteValue(value V, ensure bool) error {
 	}
 
 	if listsBucket != nil && indexesBucket != nil {
-		list := (&List[V, O]{
+		list := &List[V, O]{
 			valueEncoding:    l.lists.valueEncoding,
 			orderByEncoding:  l.lists.orderByEncoding,
 			errValueNotFound: l.lists.errValueNotFound,
-		}).Tx(nil)
+		}
 
 		if err := valueBucket.ForEach(func(k, _ []byte) error {
-			list.listBucketCache = listsBucket.Bucket(k)
-			list.indexBucketCache = indexesBucket.Bucket(k)
-			return list.Remove(value, false)
+			return list.txFromBuckets(
+				listsBucket.Bucket(k),
+				indexesBucket.Bucket(k),
+			).Remove(value, false)
 		}); err != nil {
 			return fmt.Errorf("delete value in keys bucket: %w", err)
 		}

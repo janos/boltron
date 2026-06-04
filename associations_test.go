@@ -1419,6 +1419,70 @@ func TestAssociations_multipleSimultaneousBucketDeletes_dataIntegrity(t *testing
 	})
 }
 
+// TestAssociations_deleteLeft_txFromBuckets is the regression guard for
+// AssociationsTx.DeleteLeft. It puts alice in 5 associations, then calls
+// DeleteLeft which internally creates a fresh AssociationTx via txFromBuckets
+// for each of the 5 ForEach iterations. Bob's data must be completely intact.
+func TestAssociations_deleteLeft_txFromBuckets(t *testing.T) {
+	// alice: associations 10–14 (5 iterations through the internal ForEach)
+	// bob:   associations 10–12 (3 associations, with exact right values)
+	//
+	// DeleteLeft("alice") triggers 5 separate txFromBuckets calls.
+	// bob must survive with byte-exact right-value data.
+
+	db := newDB(t)
+
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		b := ballots.Tx(tx)
+
+		for _, entry := range []struct {
+			assocID uint64
+			left    string
+			right   uint64
+		}{
+			// alice — 5 associations
+			{10, "alice", 1000}, {11, "alice", 2000}, {12, "alice", 3000},
+			{13, "alice", 4000}, {14, "alice", 5000},
+			// bob — 3 associations
+			{10, "bob", 101}, {11, "bob", 202}, {12, "bob", 303},
+		} {
+			a, _, err := b.Association(entry.assocID)
+			assertErrorFail(t, "", err, nil)
+			err = a.Set(entry.left, entry.right)
+			assertErrorFail(t, "", err, nil)
+		}
+	})
+
+	// DeleteLeft("alice") — 5 ForEach iterations, each via txFromBuckets.
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		b := ballots.Tx(tx)
+		err := b.DeleteLeft("alice", true)
+		assertErrorFail(t, "", err, nil)
+	})
+
+	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+		b := ballots.Tx(tx)
+
+		// alice is completely gone.
+		has, err := b.HasLeft("alice")
+		assertErrorFail(t, "", err, nil)
+		assert(t, "alice gone", has, false)
+
+		// bob: exact right values in all 3 associations, unchanged.
+		assertAssocRight(t, b, 10, "bob", uint64(101))
+		assertAssocRight(t, b, 11, "bob", uint64(202))
+		assertAssocRight(t, b, 12, "bob", uint64(303))
+		assertAssocSize(t, b, 10, 1)
+		assertAssocSize(t, b, 11, 1)
+		assertAssocSize(t, b, 12, 1)
+		assertLeftAssociations(t, b, "bob", []uint64{10, 11, 12})
+
+		// The 2 associations that only had alice are now empty.
+		assertAssocSize(t, b, 13, 0)
+		assertAssocSize(t, b, 14, 0)
+	})
+}
+
 func ballotsDB(t testing.TB) *bolt.DB {
 	t.Helper()
 

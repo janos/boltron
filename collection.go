@@ -66,6 +66,16 @@ func (d *Collection[K, V]) Tx(tx *bolt.Tx) *CollectionTx[K, V] {
 	}
 }
 
+// txFromBucket returns a CollectionTx whose bucket is already resolved.
+// This avoids the need to call Tx(nil) and then manually inject bucketCache,
+// which would leave a nil bolt.Tx that panics if any code path opens a new bucket.
+func (d *Collection[K, V]) txFromBucket(bucket *bolt.Bucket) *CollectionTx[K, V] {
+	return &CollectionTx[K, V]{
+		collection:  d,
+		bucketCache: bucket,
+	}
+}
+
 // CollectionTx provides methods to access and change key/value pairs.
 type CollectionTx[K, V any] struct {
 	tx          *bolt.Tx

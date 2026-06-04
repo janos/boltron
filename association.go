@@ -91,6 +91,18 @@ func (a *Association[L, R]) Tx(tx *bolt.Tx) *AssociationTx[L, R] {
 	}
 }
 
+// txFromBuckets returns an AssociationTx whose left and right buckets are already
+// resolved. This avoids the need to call Tx(nil) and then manually inject bucket
+// caches, which would leave a nil bolt.Tx that panics if any code path opens a
+// new bucket.
+func (a *Association[L, R]) txFromBuckets(left, right *bolt.Bucket) *AssociationTx[L, R] {
+	return &AssociationTx[L, R]{
+		association:      a,
+		leftBucketCache:  left,
+		rightBucketCache: right,
+	}
+}
+
 // AssociationTx provides methods to access and change relations.
 type AssociationTx[L, R any] struct {
 	tx               *bolt.Tx

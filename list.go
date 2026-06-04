@@ -65,6 +65,18 @@ func (d *List[V, O]) Tx(tx *bolt.Tx) *ListTx[V, O] {
 	}
 }
 
+// txFromBuckets returns a ListTx whose list and index buckets are already
+// resolved. This avoids the need to call Tx(nil) and then manually inject bucket
+// caches, which would leave a nil bolt.Tx that panics if any code path opens a
+// new bucket.
+func (d *List[V, O]) txFromBuckets(listBucket, indexBucket *bolt.Bucket) *ListTx[V, O] {
+	return &ListTx[V, O]{
+		list:             d,
+		listBucketCache:  listBucket,
+		indexBucketCache: indexBucket,
+	}
+}
+
 // ListTx provides methods to access and change ordered list of values.
 type ListTx[V, O any] struct {
 	tx               *bolt.Tx

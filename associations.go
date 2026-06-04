@@ -395,12 +395,13 @@ func (a *AssociationsTx[A, L, R]) DeleteLeft(left L, ensure bool) error {
 			rightEncoding:    a.associations.rightEncoding,
 			errLeftNotFound:  a.associations.errLeftNotFound,
 			errRightNotFound: a.associations.errRightNotFound,
-		}).Tx(nil)
+		})
 
 		if err := leftIndexBucket.ForEach(func(ak, _ []byte) error {
-			association.leftBucketCache = leftBuckets.Bucket(ak)
-			association.rightBucketCache = rightBuckets.Bucket(ak)
-			return association.DeleteByLeft(left, false)
+			return association.txFromBuckets(
+				leftBuckets.Bucket(ak),
+				rightBuckets.Bucket(ak),
+			).DeleteByLeft(left, false)
 		}); err != nil {
 			return fmt.Errorf("delete relation in left and right buckets: %w", err)
 		}

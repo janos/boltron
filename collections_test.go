@@ -1588,6 +1588,80 @@ func TestCollections_multipleSimultaneousBucketDeletes_dataIntegrity(t *testing.
 	})
 }
 
+// TestCollections_deleteKey_txFromBucket is the regression guard for
+// CollectionsTx.DeleteKey. It puts alice in 5 elections, then calls DeleteKey
+// which internally creates a fresh CollectionTx via txFromBucket for each of
+// the 5 ForEach iterations. Bob and carol's data must be completely intact.
+func TestCollections_deleteKey_txFromBucket(t *testing.T) {
+	// alice: elections 10–14 (5 iterations through the internal ForEach)
+	// bob:   elections 10–12 (3 elections, with exact ballot values)
+	// carol: elections 13–14 (2 elections, with exact ballot values)
+	//
+	// DeleteKey("alice") triggers 5 separate txFromBucket calls.
+	// bob and carol must survive with byte-exact ballot data.
+
+	db := newDB(t)
+
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		c := elections.Tx(tx)
+
+		for _, entry := range []struct {
+			electionID uint64
+			voter      string
+			val        int
+		}{
+			// alice — 5 elections
+			{10, "alice", 1}, {11, "alice", 2}, {12, "alice", 3},
+			{13, "alice", 4}, {14, "alice", 5},
+			// bob — 3 elections
+			{10, "bob", 101}, {11, "bob", 102}, {12, "bob", 103},
+			// carol — 2 elections
+			{13, "carol", 201}, {14, "carol", 202},
+		} {
+			e, _, err := c.Collection(entry.electionID)
+			assertErrorFail(t, "", err, nil)
+			_, err = e.Save(entry.voter, newBallot(entry.val), false)
+			assertErrorFail(t, "", err, nil)
+		}
+	})
+
+	// DeleteKey("alice") — 5 ForEach iterations, each via txFromBucket.
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		c := elections.Tx(tx)
+		err := c.DeleteKey("alice", true)
+		assertErrorFail(t, "", err, nil)
+	})
+
+	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+		c := elections.Tx(tx)
+
+		// alice is completely gone.
+		has, err := c.HasKey("alice")
+		assertErrorFail(t, "", err, nil)
+		assert(t, "alice gone", has, false)
+
+		for _, id := range []uint64{10, 11, 12, 13, 14} {
+			assertElectionMissing(t, c, id, "alice")
+		}
+
+		// bob: exact ballot values in all 3 elections, unchanged.
+		assertElectionBallot(t, c, 10, "bob", newBallot(101))
+		assertElectionBallot(t, c, 11, "bob", newBallot(102))
+		assertElectionBallot(t, c, 12, "bob", newBallot(103))
+		assertElectionSize(t, c, 10, 1)
+		assertElectionSize(t, c, 11, 1)
+		assertElectionSize(t, c, 12, 1)
+		assertKeyCollections(t, c, "bob", []uint64{10, 11, 12})
+
+		// carol: exact ballot values in both elections, unchanged.
+		assertElectionBallot(t, c, 13, "carol", newBallot(201))
+		assertElectionBallot(t, c, 14, "carol", newBallot(202))
+		assertElectionSize(t, c, 13, 1)
+		assertElectionSize(t, c, 14, 1)
+		assertKeyCollections(t, c, "carol", []uint64{13, 14})
+	})
+}
+
 func electionsDB(t testing.TB) *bolt.DB {
 	t.Helper()
 

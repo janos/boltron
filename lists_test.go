@@ -1562,6 +1562,79 @@ func TestLists_multipleSimultaneousBucketDeletes_dataIntegrity(t *testing.T) {
 	})
 }
 
+// TestLists_deleteValue_txFromBuckets is the regression guard for
+// ListsTx.DeleteValue. It puts value 999 in 5 lists, then calls DeleteValue
+// which internally creates a fresh ListTx via txFromBuckets for each of the 5
+// ForEach iterations. Value 888's orderBy timestamps must be byte-exact.
+func TestLists_deleteValue_txFromBuckets(t *testing.T) {
+	// value 999: lists alpha–epsilon (5 iterations through the internal ForEach)
+	// value 888: lists alpha, beta, gamma (3 lists, with distinct timestamps)
+	//
+	// DeleteValue(999) triggers 5 separate txFromBuckets calls.
+	// value 888's timestamps must survive byte-exact in all 3 lists.
+
+	t1 := time.Unix(9001, 0)
+	t2 := time.Unix(9002, 0)
+	t3 := time.Unix(9003, 0)
+
+	db := newDB(t)
+
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		pd := projectDependencies.Tx(tx)
+
+		for _, entry := range []struct {
+			listName string
+			value    uint64
+			orderBy  time.Time
+		}{
+			// value 999 — 5 lists
+			{"alpha", 999, time.Unix(1001, 0)},
+			{"beta", 999, time.Unix(1002, 0)},
+			{"gamma", 999, time.Unix(1003, 0)},
+			{"delta", 999, time.Unix(1004, 0)},
+			{"epsilon", 999, time.Unix(1005, 0)},
+			// value 888 — 3 lists with distinct timestamps
+			{"alpha", 888, t1},
+			{"beta", 888, t2},
+			{"gamma", 888, t3},
+		} {
+			list, _, err := pd.List(entry.listName)
+			assertErrorFail(t, "", err, nil)
+			err = list.Add(entry.value, entry.orderBy)
+			assertErrorFail(t, "", err, nil)
+		}
+	})
+
+	// DeleteValue(999) — 5 ForEach iterations, each via txFromBuckets.
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		pd := projectDependencies.Tx(tx)
+		err := pd.DeleteValue(999, true)
+		assertErrorFail(t, "", err, nil)
+	})
+
+	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+		pd := projectDependencies.Tx(tx)
+
+		// value 999 is completely gone.
+		has, err := pd.HasValue(999)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "value 999 gone", has, false)
+
+		// value 888: byte-exact timestamps in all 3 lists, unchanged.
+		assertListOrderBy(t, pd, "alpha", 888, t1)
+		assertListOrderBy(t, pd, "beta", 888, t2)
+		assertListOrderBy(t, pd, "gamma", 888, t3)
+
+		assertListSize(t, pd, "alpha", 1)   // 888 only
+		assertListSize(t, pd, "beta", 1)    // 888 only
+		assertListSize(t, pd, "gamma", 1)   // 888 only
+		assertListSize(t, pd, "delta", 0)   // 999 was the only entry
+		assertListSize(t, pd, "epsilon", 0) // 999 was the only entry
+
+		assertValueLists(t, pd, 888, []string{"alpha", "beta", "gamma"})
+	})
+}
+
 func projectsDependenciesDB(t testing.TB) *bolt.DB {
 	t.Helper()
 

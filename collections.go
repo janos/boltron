@@ -329,16 +329,15 @@ func (c *CollectionsTx[C, K, V]) DeleteKey(key K, ensure bool) error {
 	}
 
 	if collectionsBucket != nil {
-		collection := (&Collection[K, V]{
+		collection := &Collection[K, V]{
 			keyEncoding:   c.collections.keyEncoding,
 			valueEncoding: c.collections.valueEncoding,
 			errNotFound:   c.collections.errKeyNotFound,
 			errKeyExists:  c.collections.errKeyExists,
-		}).Tx(nil)
+		}
 
 		if err := keyBucket.ForEach(func(k, _ []byte) error {
-			collection.bucketCache = collectionsBucket.Bucket(k)
-			return collection.Delete(key, false)
+			return collection.txFromBucket(collectionsBucket.Bucket(k)).Delete(key, false)
 		}); err != nil {
 			return fmt.Errorf("delete key in collection bucket: %w", err)
 		}
