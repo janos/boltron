@@ -15,15 +15,37 @@ import (
 )
 
 func init() {
-	// 1. Get the real bbolt.Cursor type using a nil pointer
+	// checkFieldOffset panics if the named field's memory offset differs between
+	// realType and mirrorType. This catches struct field reordering in bbolt
+	// internals: a reordering that preserves total struct size would pass the
+	// existing size check, but would place the wrong data under the unsafe pointer
+	// cast, causing silent memory corruption. Only fields actually read or written
+	// through the unsafe cast are checked.
+	checkFieldOffset := func(realType, mirrorType reflect.Type, fieldName, context string) {
+		realField, ok := realType.FieldByName(fieldName)
+		if !ok {
+			panic("boltron: " + context + "." + fieldName + " field is missing or renamed in bbolt")
+		}
+		mirrorField, ok := mirrorType.FieldByName(fieldName)
+		if !ok {
+			panic("boltron: " + context + "." + fieldName + " field is missing in mirror type")
+		}
+		if realField.Offset != mirrorField.Offset {
+			panic("boltron: " + context + "." + fieldName + " field offset mismatch between bbolt and mirror type. Unsupported bbolt version.")
+		}
+	}
+
+	// 1. Validate bbolt.Cursor layout.
 	realCursorType := reflect.TypeFor[bolt.Cursor]()
 	mirrorCursorType := reflect.TypeFor[cursorMirror]()
 
 	if realCursorType.Size() != mirrorCursorType.Size() {
 		panic("boltron: bbolt.Cursor memory layout size mismatch. Unsupported bbolt version.")
 	}
+	// Skip() reads mirror.stack — its offset must match.
+	checkFieldOffset(realCursorType, mirrorCursorType, "stack", "bbolt.Cursor")
 
-	// 2. Traverse down to real bbolt.elemRef via the "stack" field
+	// 2. Traverse down to real bbolt.elemRef via the "stack" field.
 	stackField, ok := realCursorType.FieldByName("stack")
 	if !ok {
 		panic("boltron: bbolt.Cursor.stack field is missing or renamed")
@@ -34,8 +56,12 @@ func init() {
 	if realElemRefType.Size() != mirrorElemRefType.Size() {
 		panic("boltron: bbolt.elemRef memory layout size mismatch.")
 	}
+	// getCount() reads ref.node and ref.page; Skip() reads and writes ref.index.
+	checkFieldOffset(realElemRefType, mirrorElemRefType, "page", "bbolt.elemRef")
+	checkFieldOffset(realElemRefType, mirrorElemRefType, "node", "bbolt.elemRef")
+	checkFieldOffset(realElemRefType, mirrorElemRefType, "index", "bbolt.elemRef")
 
-	// 3. Traverse down to real bbolt.node via the "node" field in elemRef
+	// 3. Traverse down to real bbolt.node via the "node" field in elemRef.
 	nodeField, ok := realElemRefType.FieldByName("node")
 	if !ok {
 		panic("boltron: bbolt.elemRef.node field is missing or renamed")
@@ -46,21 +72,28 @@ func init() {
 	if realNodeType.Size() != mirrorNodeType.Size() {
 		panic("boltron: bbolt.node memory layout size mismatch.")
 	}
+	// getCount() reads ref.node.inodes — its offset must match.
+	checkFieldOffset(realNodeType, mirrorNodeType, "inodes", "bbolt.node")
 
-	// 4. Traverse down to real bbolt.page via the "page" field in elemRef
+	// 4. Traverse down to real bbolt.page via the "page" field in elemRef.
 	pageField, ok := realElemRefType.FieldByName("page")
 	if !ok {
 		panic("bboltext: bbolt.elemRef.page field is missing or renamed")
 	}
 	realPageType := pageField.Type.Elem() // The type pointed to by *page
+	mirrorPageType := reflect.TypeFor[pageMirror]()
 
 	// v1.3.x layout is 24 bytes (includes ptr uintptr)
 	// v1.5.x layout is 16 bytes (ptr uintptr removed for checkptr safety)
 	if realPageType.Size() != 16 && realPageType.Size() != 24 {
 		panic("bboltext: bbolt.page memory layout size mismatch. Expected 16 or 24 bytes.")
 	}
+	// getCount() reads ref.page.count — verify its offset. count follows id
+	// (uint64, 8 bytes) and flags (uint16, 2 bytes), so it is stable at offset 10
+	// across both the 16-byte (v1.4+) and 24-byte (v1.3) page layouts.
+	checkFieldOffset(realPageType, mirrorPageType, "count", "bbolt.page")
 
-	// 5. Traverse down to real bbolt.inode via the "inodes" field in node
+	// 5. Traverse down to real bbolt.inode via the "inodes" field in node.
 	inodesField, ok := realNodeType.FieldByName("inodes")
 	if !ok {
 		panic("boltron: bbolt.node.inodes field is missing or renamed")
@@ -73,7 +106,7 @@ func init() {
 	}
 }
 
-// Struct mirrors for bbolt internals (target: v1.5.0-rc.0).
+// Struct mirrors for bbolt internals
 // These match the unexported memory layouts to allow unsafe manipulation.
 // Go will automatically handle struct padding (e.g., 5 bytes after the bools in nodeMirror).
 
