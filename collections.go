@@ -173,7 +173,7 @@ func (c *CollectionsTx[C, K, V]) Collection(key C) (collection *CollectionTx[K, 
 				if err := keyBucket.Delete(k); err != nil {
 					return fmt.Errorf("delete value from lists values bucket: %w", err)
 				}
-				if keysBucket.Stats().KeyN == 1 { // stats are updated after the transaction
+				if first, _ := keyBucket.Cursor().First(); first == nil {
 					if err := keysBucket.DeleteBucket(key); err != nil {
 						return fmt.Errorf("delete empty key bucket: %w", err)
 					}
@@ -278,7 +278,7 @@ func (c *CollectionsTx[C, K, V]) DeleteCollection(key C, ensure bool) error {
 		if err := keyBucket.Delete(ck); err != nil {
 			return fmt.Errorf("delete collection key from key bucket: %w", err)
 		}
-		if keyBucket.Stats().KeyN == 1 { // stats are updated after the transaction
+		if first, _ := keyBucket.Cursor().First(); first == nil {
 			if err := keysBucket.DeleteBucket(k); err != nil {
 				return fmt.Errorf("delete bucket from keys bucket: %w", err)
 			}

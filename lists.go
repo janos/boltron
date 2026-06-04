@@ -139,7 +139,10 @@ func (l *ListsTx[K, V, O]) List(key K) (list *ListTx[V, O], exists bool, err err
 	if err != nil {
 		return nil, false, fmt.Errorf("lists bucket: %w", err)
 	}
-	exists = listsBucket != nil && listsBucket.Bucket(k) != nil && listsBucket.Bucket(k).Stats().KeyN != 0
+	if listsBucket != nil && listsBucket.Bucket(k) != nil {
+		first, _ := listsBucket.Bucket(k).Cursor().First()
+		exists = first != nil
+	}
 
 	return &ListTx[V, O]{
 		tx: l.tx,
@@ -187,7 +190,7 @@ func (l *ListsTx[K, V, O]) List(key K) (list *ListTx[V, O], exists bool, err err
 				if err := valueBucket.Delete(k); err != nil {
 					return fmt.Errorf("delete value from lists values bucket: %w", err)
 				}
-				if valuesBucket.Stats().KeyN == 1 { // stats are updated after the transaction
+				if first, _ := valueBucket.Cursor().First(); first == nil {
 					if err := valuesBucket.DeleteBucket(value); err != nil {
 						return fmt.Errorf("delete empty value bucket: %w", err)
 					}
@@ -301,7 +304,7 @@ func (l *ListsTx[K, V, O]) DeleteList(key K, ensure bool) error {
 		if err := valueBucket.Delete(k); err != nil {
 			return fmt.Errorf("delete key from value bucket: %w", err)
 		}
-		if valueBucket.Stats().KeyN == 1 { // stats are updated after the transaction
+		if first, _ := valueBucket.Cursor().First(); first == nil {
 			if err := valuesBucket.DeleteBucket(v); err != nil {
 				return fmt.Errorf("delete bucket from values bucket: %w", err)
 			}

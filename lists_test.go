@@ -1072,6 +1072,496 @@ func TestLists_uniqueValues_customErrValueExists(t *testing.T) {
 	})
 }
 
+// TestLists_removeCallback_orphanBucket_multipleValues is the critical
+// regression for the wrong-bucket bug in the lists removeCallback
+// (valuesBucket.Stats().KeyN instead of valueBucket.Stats().KeyN).
+// With multiple value sub-buckets, the old check would never fire, leaving
+// orphaned value sub-buckets.
+func TestLists_removeCallback_orphanBucket_multipleValues(t *testing.T) {
+	db := newDB(t)
+
+	// Set up: two projects sharing values 100 and 200 (dep IDs).
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		pd := projectDependencies.Tx(tx)
+		boltron, _, err := pd.List("resenje.org/boltron")
+		assertErrorFail(t, "", err, nil)
+		schulze, _, err := pd.List("resenje.org/schulze")
+		assertErrorFail(t, "", err, nil)
+
+		err = boltron.Add(100, time.Unix(1000, 0))
+		assertErrorFail(t, "", err, nil)
+		err = boltron.Add(200, time.Unix(2000, 0))
+		assertErrorFail(t, "", err, nil)
+		err = schulze.Add(100, time.Unix(3000, 0))
+		assertErrorFail(t, "", err, nil)
+		err = schulze.Add(200, time.Unix(4000, 0))
+		assertErrorFail(t, "", err, nil)
+	})
+
+	// Remove value 100 from resenje.org/boltron. Value 100's index sub-bucket
+	// must survive (schulze still uses it). Value 200's sub-bucket must survive.
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		pd := projectDependencies.Tx(tx)
+		boltronList, _, err := pd.List("resenje.org/boltron")
+		assertErrorFail(t, "", err, nil)
+		err = boltronList.Remove(100, true)
+		assertErrorFail(t, "", err, nil)
+
+		// 100 still used by schulze, so HasValue(100) must be true.
+		has, err := pd.HasValue(100)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "value 100 still has schulze in same tx", has, true)
+
+		has, err = pd.HasValue(200)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "value 200 still present in same tx", has, true)
+	})
+
+	// Remove value 100 from schulze too. Now 100's index sub-bucket must
+	// vanish, but 200's must still be there. This is the case the old
+	// wrong-bucket check (valuesBucket.Stats().KeyN == 1) missed: the parent
+	// bucket had 2 children so KeyN was 2, and the cleanup never ran.
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		pd := projectDependencies.Tx(tx)
+		schulzeList, _, err := pd.List("resenje.org/schulze")
+		assertErrorFail(t, "", err, nil)
+		err = schulzeList.Remove(100, true)
+		assertErrorFail(t, "", err, nil)
+
+		has, err := pd.HasValue(100)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "value 100 gone in same tx", has, false)
+
+		has, err = pd.HasValue(200)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "value 200 survives in same tx", has, true)
+	})
+
+	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+		pd := projectDependencies.Tx(tx)
+		has, err := pd.HasValue(100)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "value 100 gone after tx", has, false)
+
+		has, err = pd.HasValue(200)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "value 200 survives after tx", has, true)
+	})
+}
+
+// TestLists_deleteList_orphanBucket_multipleValues verifies that DeleteList
+// cleans up value sub-buckets for a value that appears in multiple lists,
+// when the deleted list is the last reference.
+func TestLists_deleteList_orphanBucket_multipleValues(t *testing.T) {
+	db := newDB(t)
+
+	// boltron uses values 100 and 200; schulze uses value 100 only.
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		pd := projectDependencies.Tx(tx)
+		boltronList, _, err := pd.List("resenje.org/boltron")
+		assertErrorFail(t, "", err, nil)
+		schulzeList, _, err := pd.List("resenje.org/schulze")
+		assertErrorFail(t, "", err, nil)
+
+		err = boltronList.Add(100, time.Unix(1000, 0))
+		assertErrorFail(t, "", err, nil)
+		err = boltronList.Add(200, time.Unix(2000, 0))
+		assertErrorFail(t, "", err, nil)
+		err = schulzeList.Add(100, time.Unix(3000, 0))
+		assertErrorFail(t, "", err, nil)
+	})
+
+	// Delete resenje.org/boltron. Value 100's index sub-bucket must survive
+	// (schulze still uses it). Value 200's index sub-bucket must be removed
+	// (boltron was its only reference).
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		pd := projectDependencies.Tx(tx)
+		err := pd.DeleteList("resenje.org/boltron", true)
+		assertErrorFail(t, "", err, nil)
+
+		has, err := pd.HasValue(100)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "value 100 survives (still in schulze) in same tx", has, true)
+
+		has, err = pd.HasValue(200)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "value 200 gone (boltron was sole reference) in same tx", has, false)
+	})
+
+	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+		pd := projectDependencies.Tx(tx)
+		has, err := pd.HasValue(100)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "value 100 survives after tx", has, true)
+
+		has, err = pd.HasValue(200)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "value 200 gone after tx", has, false)
+	})
+}
+
+// TestLists_existsCheck_emptyListBucket tests the List() exists check
+// (lists.go:142) which used Stats().KeyN != 0 to determine if a list has any
+// entries. Stats are stale, so an empty-but-existing bucket would incorrectly
+// report exists=true. The fix uses Cursor().First() which reflects current state.
+func TestLists_existsCheck_emptyListBucket(t *testing.T) {
+	db := newDB(t)
+
+	// Create a list with one entry, then remove that entry in the same tx.
+	// Immediately check exists — must be false.
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		pd := projectDependencies.Tx(tx)
+		list, exists, err := pd.List("resenje.org/boltron")
+		assertErrorFail(t, "", err, nil)
+		assert(t, "list does not exist initially", exists, false)
+
+		err = list.Add(100, time.Unix(1000, 0))
+		assertErrorFail(t, "", err, nil)
+
+		err = list.Remove(100, true)
+		assertErrorFail(t, "", err, nil)
+
+		// Re-open the list; it exists in the bucket but is now empty.
+		// With the stale Stats() check this returned exists=true.
+		_, exists, err = pd.List("resenje.org/boltron")
+		assertErrorFail(t, "", err, nil)
+		assert(t, "list exists=false after emptying within same tx", exists, false)
+	})
+
+	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+		pd := projectDependencies.Tx(tx)
+		_, exists, err := pd.List("resenje.org/boltron")
+		assertErrorFail(t, "", err, nil)
+		assert(t, "list exists=false after tx", exists, false)
+	})
+}
+
+// TestLists_remove_dataIntegrity verifies that removing a value from a list
+// (emptying its value index sub-bucket) does not disturb other values' index
+// entries or the orderBy timestamps stored alongside them.
+func TestLists_remove_dataIntegrity(t *testing.T) {
+	// Data:
+	//   list "alpha": value 100 @ t1, value 200 @ t2, value 300 @ t3
+	//   list "beta":  value 100 @ t4, value 200 @ t5
+	//   list "gamma": value 100 @ t6, value 300 @ t7
+	// Removing 100 from "alpha": value 100 index sub-bucket {alpha,beta,gamma} → {beta,gamma}.
+	// Removing 100 from "beta":  index sub-bucket {beta,gamma} → {gamma}.
+	// Removing 100 from "gamma": index sub-bucket empty → deleted.
+	// All 200 and 300 timestamps must survive exactly.
+
+	t1 := time.Unix(1001, 0)
+	t2 := time.Unix(1002, 0)
+	t3 := time.Unix(1003, 0)
+	t4 := time.Unix(2001, 0)
+	t5 := time.Unix(2002, 0)
+	t6 := time.Unix(3001, 0)
+	t7 := time.Unix(3002, 0)
+
+	db := newDB(t)
+
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		pd := projectDependencies.Tx(tx)
+		alpha, _, err := pd.List("alpha")
+		assertErrorFail(t, "", err, nil)
+		beta, _, err := pd.List("beta")
+		assertErrorFail(t, "", err, nil)
+		gamma, _, err := pd.List("gamma")
+		assertErrorFail(t, "", err, nil)
+
+		assertErrorFail(t, "", alpha.Add(100, t1), nil)
+		assertErrorFail(t, "", alpha.Add(200, t2), nil)
+		assertErrorFail(t, "", alpha.Add(300, t3), nil)
+		assertErrorFail(t, "", beta.Add(100, t4), nil)
+		assertErrorFail(t, "", beta.Add(200, t5), nil)
+		assertErrorFail(t, "", gamma.Add(100, t6), nil)
+		assertErrorFail(t, "", gamma.Add(300, t7), nil)
+	})
+
+	// Remove 100 from alpha.
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		pd := projectDependencies.Tx(tx)
+		alpha, _, err := pd.List("alpha")
+		assertErrorFail(t, "", err, nil)
+		assertErrorFail(t, "", alpha.Remove(100, true), nil)
+	})
+
+	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+		pd := projectDependencies.Tx(tx)
+
+		// 100 still in beta and gamma.
+		has, err := pd.HasValue(100)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "value 100 still present via beta/gamma", has, true)
+
+		// All exact orderBy timestamps are intact.
+		assertListOrderBy(t, pd, "alpha", 200, t2)
+		assertListOrderBy(t, pd, "alpha", 300, t3)
+		assertListOrderBy(t, pd, "beta", 100, t4)
+		assertListOrderBy(t, pd, "beta", 200, t5)
+		assertListOrderBy(t, pd, "gamma", 100, t6)
+		assertListOrderBy(t, pd, "gamma", 300, t7)
+
+		assertListSize(t, pd, "alpha", 2) // 200 + 300
+		assertListSize(t, pd, "beta", 2)
+		assertListSize(t, pd, "gamma", 2)
+
+		assertValueLists(t, pd, 200, []string{"alpha", "beta"})
+		assertValueLists(t, pd, 300, []string{"alpha", "gamma"})
+		assertValueLists(t, pd, 100, []string{"beta", "gamma"})
+	})
+
+	// Remove 100 from beta and gamma — triggers sub-bucket deletion for 100.
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		pd := projectDependencies.Tx(tx)
+		beta, _, err := pd.List("beta")
+		assertErrorFail(t, "", err, nil)
+		gamma, _, err := pd.List("gamma")
+		assertErrorFail(t, "", err, nil)
+		assertErrorFail(t, "", beta.Remove(100, true), nil)
+		assertErrorFail(t, "", gamma.Remove(100, true), nil)
+	})
+
+	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+		pd := projectDependencies.Tx(tx)
+
+		has, err := pd.HasValue(100)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "value 100 is gone after last removal", has, false)
+
+		// All 200 and 300 timestamps are byte-for-byte unchanged.
+		assertListOrderBy(t, pd, "alpha", 200, t2)
+		assertListOrderBy(t, pd, "alpha", 300, t3)
+		assertListOrderBy(t, pd, "beta", 200, t5)
+		assertListOrderBy(t, pd, "gamma", 300, t7)
+
+		assertListSize(t, pd, "alpha", 2)
+		assertListSize(t, pd, "beta", 1)  // 200 only
+		assertListSize(t, pd, "gamma", 1) // 300 only
+
+		assertValueLists(t, pd, 200, []string{"alpha", "beta"})
+		assertValueLists(t, pd, 300, []string{"alpha", "gamma"})
+	})
+}
+
+// TestLists_deleteList_dataIntegrity verifies that DeleteList removes only the
+// targeted list and the targeted list's index entries from value sub-buckets.
+// Other lists and their exact orderBy timestamps must be completely intact.
+func TestLists_deleteList_dataIntegrity(t *testing.T) {
+	// Data:
+	//   list "alpha": value 100 @ t1, value 200 @ t2   ← will be deleted
+	//   list "beta":  value 100 @ t3, value 300 @ t4
+	//   list "gamma": value 200 @ t5, value 300 @ t6
+	// Deleting "alpha": 100 sub-bucket {alpha,beta} → {beta} (survives).
+	//                   200 sub-bucket {alpha,gamma} → {gamma} (survives).
+	// 300 sub-bucket only references beta and gamma — completely untouched.
+
+	t1 := time.Unix(1001, 0)
+	t2 := time.Unix(1002, 0)
+	t3 := time.Unix(2001, 0)
+	t4 := time.Unix(2002, 0)
+	t5 := time.Unix(3001, 0)
+	t6 := time.Unix(3002, 0)
+
+	db := newDB(t)
+
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		pd := projectDependencies.Tx(tx)
+		alpha, _, err := pd.List("alpha")
+		assertErrorFail(t, "", err, nil)
+		beta, _, err := pd.List("beta")
+		assertErrorFail(t, "", err, nil)
+		gamma, _, err := pd.List("gamma")
+		assertErrorFail(t, "", err, nil)
+
+		assertErrorFail(t, "", alpha.Add(100, t1), nil)
+		assertErrorFail(t, "", alpha.Add(200, t2), nil)
+		assertErrorFail(t, "", beta.Add(100, t3), nil)
+		assertErrorFail(t, "", beta.Add(300, t4), nil)
+		assertErrorFail(t, "", gamma.Add(200, t5), nil)
+		assertErrorFail(t, "", gamma.Add(300, t6), nil)
+	})
+
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		pd := projectDependencies.Tx(tx)
+		err := pd.DeleteList("alpha", true)
+		assertErrorFail(t, "", err, nil)
+	})
+
+	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+		pd := projectDependencies.Tx(tx)
+
+		has, err := pd.HasList("alpha")
+		assertErrorFail(t, "", err, nil)
+		assert(t, "list alpha is gone", has, false)
+
+		// 100 and 200 survived (still referenced by beta/gamma).
+		has, err = pd.HasValue(100)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "value 100 survives (still in beta)", has, true)
+
+		has, err = pd.HasValue(200)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "value 200 survives (still in gamma)", has, true)
+
+		// 300 sub-bucket was never touched.
+		has, err = pd.HasValue(300)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "value 300 completely untouched", has, true)
+
+		// All exact orderBy timestamps are intact.
+		assertListOrderBy(t, pd, "beta", 100, t3)
+		assertListOrderBy(t, pd, "beta", 300, t4)
+		assertListOrderBy(t, pd, "gamma", 200, t5)
+		assertListOrderBy(t, pd, "gamma", 300, t6)
+
+		assertListSize(t, pd, "beta", 2)
+		assertListSize(t, pd, "gamma", 2)
+
+		assertValueLists(t, pd, 100, []string{"beta"})
+		assertValueLists(t, pd, 200, []string{"gamma"})
+		assertValueLists(t, pd, 300, []string{"beta", "gamma"})
+	})
+}
+
+// TestLists_deleteValue_dataIntegrity tests ListsTx.DeleteValue, which removes
+// a value from ALL lists in one call and deletes its index sub-bucket.
+// Every other value's orderBy timestamps must survive byte-for-byte unchanged.
+func TestLists_deleteValue_dataIntegrity(t *testing.T) {
+	// Data:
+	//   list "alpha": value 100 @ t1, value 200 @ t2, value 300 @ t3
+	//   list "beta":  value 100 @ t4, value 200 @ t5
+	//   list "gamma": value 100 @ t6, value 300 @ t7
+	// DeleteValue(100): removes from alpha, beta, gamma; 100 sub-bucket deleted.
+	// Timestamps for 200 and 300 must be exactly as stored.
+
+	t1 := time.Unix(1001, 0)
+	t2 := time.Unix(1002, 0)
+	t3 := time.Unix(1003, 0)
+	t4 := time.Unix(2001, 0)
+	t5 := time.Unix(2002, 0)
+	t6 := time.Unix(3001, 0)
+	t7 := time.Unix(3002, 0)
+
+	db := newDB(t)
+
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		pd := projectDependencies.Tx(tx)
+		alpha, _, err := pd.List("alpha")
+		assertErrorFail(t, "", err, nil)
+		beta, _, err := pd.List("beta")
+		assertErrorFail(t, "", err, nil)
+		gamma, _, err := pd.List("gamma")
+		assertErrorFail(t, "", err, nil)
+
+		assertErrorFail(t, "", alpha.Add(100, t1), nil)
+		assertErrorFail(t, "", alpha.Add(200, t2), nil)
+		assertErrorFail(t, "", alpha.Add(300, t3), nil)
+		assertErrorFail(t, "", beta.Add(100, t4), nil)
+		assertErrorFail(t, "", beta.Add(200, t5), nil)
+		assertErrorFail(t, "", gamma.Add(100, t6), nil)
+		assertErrorFail(t, "", gamma.Add(300, t7), nil)
+	})
+
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		pd := projectDependencies.Tx(tx)
+		err := pd.DeleteValue(100, true)
+		assertErrorFail(t, "", err, nil)
+	})
+
+	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+		pd := projectDependencies.Tx(tx)
+
+		has, err := pd.HasValue(100)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "value 100 completely gone", has, false)
+
+		assertListSize(t, pd, "alpha", 2) // 200 + 300
+		assertListSize(t, pd, "beta", 1)  // 200
+		assertListSize(t, pd, "gamma", 1) // 300
+
+		assertListOrderBy(t, pd, "alpha", 200, t2)
+		assertListOrderBy(t, pd, "alpha", 300, t3)
+		assertListOrderBy(t, pd, "beta", 200, t5)
+		assertListOrderBy(t, pd, "gamma", 300, t7)
+
+		assertValueLists(t, pd, 200, []string{"alpha", "beta"})
+		assertValueLists(t, pd, 300, []string{"alpha", "gamma"})
+	})
+}
+
+// TestLists_multipleSimultaneousBucketDeletes_dataIntegrity verifies that
+// removing the last reference for multiple different values in a single
+// transaction — some triggering sub-bucket deletion, some not — leaves all
+// other values and their exact orderBy timestamps completely intact.
+func TestLists_multipleSimultaneousBucketDeletes_dataIntegrity(t *testing.T) {
+	// Data:
+	//   list "alpha": value 100 @ t1, value 200 @ t2, value 300 @ t3
+	//   list "beta":  value 100 @ t4, value 300 @ t5
+	//
+	// In ONE transaction on "alpha":
+	//   Remove(100) → 100 sub-bucket {alpha,beta} → {beta}: survives
+	//   Remove(200) → 200 sub-bucket {alpha}      → {}:     DELETED
+	//
+	// 300 sub-bucket {alpha,beta} must be completely untouched.
+	// beta entry for 100 (t4) must survive exactly.
+
+	t1 := time.Unix(1001, 0)
+	t2 := time.Unix(1002, 0)
+	t3 := time.Unix(1003, 0)
+	t4 := time.Unix(2001, 0)
+	t5 := time.Unix(2002, 0)
+
+	db := newDB(t)
+
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		pd := projectDependencies.Tx(tx)
+		alpha, _, err := pd.List("alpha")
+		assertErrorFail(t, "", err, nil)
+		beta, _, err := pd.List("beta")
+		assertErrorFail(t, "", err, nil)
+
+		assertErrorFail(t, "", alpha.Add(100, t1), nil)
+		assertErrorFail(t, "", alpha.Add(200, t2), nil)
+		assertErrorFail(t, "", alpha.Add(300, t3), nil)
+		assertErrorFail(t, "", beta.Add(100, t4), nil)
+		assertErrorFail(t, "", beta.Add(300, t5), nil)
+	})
+
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		pd := projectDependencies.Tx(tx)
+		alpha, _, err := pd.List("alpha")
+		assertErrorFail(t, "", err, nil)
+
+		err = alpha.Remove(100, true)
+		assertErrorFail(t, "", err, nil)
+		err = alpha.Remove(200, true) // 200 sub-bucket deleted here
+		assertErrorFail(t, "", err, nil)
+	})
+
+	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+		pd := projectDependencies.Tx(tx)
+
+		has, err := pd.HasValue(200)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "value 200 gone", has, false)
+
+		has, err = pd.HasValue(100)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "value 100 survives via beta", has, true)
+
+		// All remaining timestamps are exactly as written.
+		assertListOrderBy(t, pd, "alpha", 300, t3)
+		assertListOrderBy(t, pd, "beta", 100, t4)
+		assertListOrderBy(t, pd, "beta", 300, t5)
+
+		assertListSize(t, pd, "alpha", 1) // 300 only
+		assertListSize(t, pd, "beta", 2)  // 100 + 300
+
+		assertValueLists(t, pd, 100, []string{"beta"})
+		assertValueLists(t, pd, 300, []string{"alpha", "beta"})
+	})
+}
+
 func projectsDependenciesDB(t testing.TB) *bolt.DB {
 	t.Helper()
 

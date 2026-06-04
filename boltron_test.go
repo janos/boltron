@@ -13,6 +13,7 @@ import (
 	"time"
 
 	bolt "go.etcd.io/bbolt"
+	"resenje.org/boltron"
 )
 
 func newDB(t testing.TB) *bolt.DB {
@@ -104,4 +105,108 @@ func assertTime(t testing.TB, message string, got, want time.Time) {
 	if !got.Equal(want) {
 		t.Errorf("%sgot %v, want %v", message, got, want)
 	}
+}
+
+// Concrete types matching the test-package vars.
+type electTx = boltron.CollectionsTx[uint64, string, *ballot]
+type assocsTx = boltron.AssociationsTx[uint64, string, uint64]
+type pdTx = boltron.ListsTx[string, uint64, time.Time]
+
+func assertElectionBallot(t testing.TB, c *electTx, electionID uint64, voter string, want *ballot) {
+	t.Helper()
+	election, exists, err := c.Collection(electionID)
+	assertErrorFail(t, "", err, nil)
+	assert(t, "", exists, true)
+	got, err := election.Get(voter)
+	assertErrorFail(t, "", err, nil)
+	assert(t, "ballot for "+voter+" in election", got, want)
+}
+
+func assertElectionMissing(t testing.TB, c *electTx, electionID uint64, voter string) {
+	t.Helper()
+	election, exists, err := c.Collection(electionID)
+	assertErrorFail(t, "", err, nil)
+	assert(t, "", exists, true)
+	has, err := election.Has(voter)
+	assertErrorFail(t, "", err, nil)
+	assert(t, voter+" should be absent from election", has, false)
+}
+
+func assertElectionSize(t testing.TB, c *electTx, electionID uint64, want int) {
+	t.Helper()
+	election, _, err := c.Collection(electionID)
+	assertErrorFail(t, "", err, nil)
+	got, err := election.Size()
+	assertErrorFail(t, "", err, nil)
+	assert(t, "election size", got, want)
+}
+
+func assertKeyCollections(t testing.TB, c *electTx, voter string, want []uint64) {
+	t.Helper()
+	var got []uint64
+	_, err := c.IterateCollectionsWithKey(voter, nil, false, func(id uint64) (bool, error) {
+		got = append(got, id)
+		return true, nil
+	})
+	assertErrorFail(t, "", err, nil)
+	assert(t, "collections for key "+voter, got, want)
+}
+
+func assertAssocRight(t testing.TB, b *assocsTx, assocID uint64, left string, want uint64) {
+	t.Helper()
+	a, _, err := b.Association(assocID)
+	assertErrorFail(t, "", err, nil)
+	got, err := a.Right(left)
+	assertErrorFail(t, "", err, nil)
+	assert(t, "right value for "+left+" in assoc", got, want)
+}
+
+func assertAssocSize(t testing.TB, b *assocsTx, assocID uint64, want int) {
+	t.Helper()
+	a, _, err := b.Association(assocID)
+	assertErrorFail(t, "", err, nil)
+	got, err := a.Size()
+	assertErrorFail(t, "", err, nil)
+	assert(t, "assoc size", got, want)
+}
+
+func assertLeftAssociations(t testing.TB, b *assocsTx, left string, want []uint64) {
+	t.Helper()
+	var got []uint64
+	_, err := b.IterateAssociationsWithLeftValue(left, nil, false, func(id uint64) (bool, error) {
+		got = append(got, id)
+		return true, nil
+	})
+	assertErrorFail(t, "", err, nil)
+	assert(t, "associations for left "+left, got, want)
+}
+
+func assertListOrderBy(t testing.TB, pd *pdTx, listName string, value uint64, want time.Time) {
+	t.Helper()
+	list, exists, err := pd.List(listName)
+	assertErrorFail(t, "", err, nil)
+	assert(t, "", exists, true)
+	got, err := list.OrderBy(value)
+	assertErrorFail(t, "", err, nil)
+	assert(t, "orderBy for value in list "+listName, got, want.UTC())
+}
+
+func assertListSize(t testing.TB, pd *pdTx, listName string, want int) {
+	t.Helper()
+	list, _, err := pd.List(listName)
+	assertErrorFail(t, "", err, nil)
+	got, err := list.Size()
+	assertErrorFail(t, "", err, nil)
+	assert(t, "list size for "+listName, got, want)
+}
+
+func assertValueLists(t testing.TB, pd *pdTx, value uint64, want []string) {
+	t.Helper()
+	var got []string
+	_, err := pd.IterateListsWithValue(value, nil, false, func(name string, _ time.Time) (bool, error) {
+		got = append(got, name)
+		return true, nil
+	})
+	assertErrorFail(t, "", err, nil)
+	assert(t, "lists for value", got, want)
 }

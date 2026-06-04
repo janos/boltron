@@ -204,7 +204,7 @@ func (a *AssociationsTx[A, L, R]) Association(key A) (association *AssociationTx
 				if err := leftIndexBucket.Delete(ak); err != nil {
 					return fmt.Errorf("delete value from lists values bucket: %w", err)
 				}
-				if leftIndexBuckets.Stats().KeyN == 1 { // stats are updated after the transaction
+				if first, _ := leftIndexBucket.Cursor().First(); first == nil {
 					if err := leftIndexBuckets.DeleteBucket(left); err != nil {
 						return fmt.Errorf("delete empty left bucket: %w", err)
 					}
@@ -317,7 +317,7 @@ func (a *AssociationsTx[A, L, R]) DeleteAssociation(key A, ensure bool) error {
 		if err := leftIndexBucket.Delete(ak); err != nil {
 			return fmt.Errorf("delete association key from left index buckets: %w", err)
 		}
-		if leftIndexBucket.Stats().KeyN == 1 { // stats are updated after the transaction
+		if first, _ := leftIndexBucket.Cursor().First(); first == nil {
 			if err := leftIndexBuckets.DeleteBucket(l); err != nil {
 				return fmt.Errorf("delete association key from left index buckets: %w", err)
 			}

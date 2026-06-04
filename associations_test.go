@@ -1072,6 +1072,353 @@ func TestAssociations_uniqueKeys_customErrKeyExists(t *testing.T) {
 	})
 }
 
+// TestAssociations_deleteCallback_orphanBucket_multipleLeftValues is the
+// critical regression for the wrong-bucket bug in the associations deleteCallback
+// (leftIndexBuckets.Stats().KeyN instead of leftIndexBucket.Stats().KeyN).
+// With multiple left values, the old check would never fire because the parent
+// bucket KeyN was > 1, leaving orphaned leftIndex sub-buckets.
+func TestAssociations_deleteCallback_orphanBucket_multipleLeftValues(t *testing.T) {
+	db := newDB(t)
+
+	// Set up: association 1 has both "alice" and "bob" as left values.
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		b := ballots.Tx(tx)
+		assoc, _, err := b.Association(1)
+		assertErrorFail(t, "", err, nil)
+		err = assoc.Set("alice", 1000)
+		assertErrorFail(t, "", err, nil)
+		err = assoc.Set("bob", 2000)
+		assertErrorFail(t, "", err, nil)
+	})
+
+	// Delete the association for right-value 1 by removing alice's mapping.
+	// This leaves bob still present. The leftIndex bucket for alice must be
+	// cleaned up, while bob's must survive.
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		b := ballots.Tx(tx)
+		assoc, _, err := b.Association(1)
+		assertErrorFail(t, "", err, nil)
+
+		// Delete alice's link to association 1.
+		err = assoc.DeleteByLeft("alice", true)
+		assertErrorFail(t, "", err, nil)
+
+		// Within same tx: alice's left index must be gone, bob's must survive.
+		has, err := b.HasLeft("alice")
+		assertErrorFail(t, "", err, nil)
+		assert(t, "alice HasLeft gone in same tx", has, false)
+
+		has, err = b.HasLeft("bob")
+		assertErrorFail(t, "", err, nil)
+		assert(t, "bob HasLeft survives in same tx", has, true)
+	})
+
+	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+		b := ballots.Tx(tx)
+		has, err := b.HasLeft("alice")
+		assertErrorFail(t, "", err, nil)
+		assert(t, "alice HasLeft gone after tx", has, false)
+
+		has, err = b.HasLeft("bob")
+		assertErrorFail(t, "", err, nil)
+		assert(t, "bob HasLeft survives after tx", has, true)
+	})
+}
+
+// TestAssociations_deleteAssociation_orphanBucket_multipleLeftValues verifies
+// that DeleteAssociation cleans up leftIndex sub-buckets for a left value that
+// appears in multiple associations, once the last association is deleted.
+func TestAssociations_deleteAssociation_orphanBucket_multipleLeftValues(t *testing.T) {
+	db := newDB(t)
+
+	// alice maps to both association 1 and 2; bob maps only to 1.
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		b := ballots.Tx(tx)
+		a1, _, err := b.Association(1)
+		assertErrorFail(t, "", err, nil)
+		err = a1.Set("alice", 100)
+		assertErrorFail(t, "", err, nil)
+		err = a1.Set("bob", 200)
+		assertErrorFail(t, "", err, nil)
+
+		a2, _, err := b.Association(2)
+		assertErrorFail(t, "", err, nil)
+		err = a2.Set("alice", 300)
+		assertErrorFail(t, "", err, nil)
+	})
+
+	// Delete association 1. alice's leftIndex sub-bucket must persist because
+	// she still maps to association 2. bob's must be removed (no other assoc).
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		b := ballots.Tx(tx)
+		err := b.DeleteAssociation(1, true)
+		assertErrorFail(t, "", err, nil)
+
+		has, err := b.HasLeft("alice")
+		assertErrorFail(t, "", err, nil)
+		assert(t, "alice HasLeft survives (still has assoc 2) in same tx", has, true)
+
+		has, err = b.HasLeft("bob")
+		assertErrorFail(t, "", err, nil)
+		assert(t, "bob HasLeft gone in same tx", has, false)
+	})
+
+	// Delete association 2. Now alice has no associations left; her sub-bucket
+	// must be cleaned up. This is the case the old Stats().KeyN == 1 got wrong
+	// when multiple left-index sub-buckets existed in the parent.
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		b := ballots.Tx(tx)
+		err := b.DeleteAssociation(2, true)
+		assertErrorFail(t, "", err, nil)
+
+		has, err := b.HasLeft("alice")
+		assertErrorFail(t, "", err, nil)
+		assert(t, "alice HasLeft gone after last assoc deleted in same tx", has, false)
+	})
+
+	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+		b := ballots.Tx(tx)
+		has, err := b.HasLeft("alice")
+		assertErrorFail(t, "", err, nil)
+		assert(t, "alice HasLeft gone after tx", has, false)
+	})
+}
+
+// TestAssociations_deleteByLeft_dataIntegrity ensures that deleting a left
+// value from one association (emptying its leftIndex sub-bucket) does not
+// disturb any other left value's right-side data in any other association.
+func TestAssociations_deleteByLeft_dataIntegrity(t *testing.T) {
+	// Data:
+	//   assoc 10: alice→1000, bob→2000, carol→3000
+	//   assoc 11: alice→4000, carol→5000
+	//   assoc 12: alice→6000, bob→7000
+	// Deleting bob from assoc 10: bob's leftIndex sub-bucket maps to {10, 12}.
+	// That removes one entry but bob still references assoc 12 → sub-bucket persists.
+	// Deleting bob from assoc 12 too: now bob's sub-bucket is empty → deleted.
+	// All alice and carol right-values must remain exactly as written.
+
+	db := newDB(t)
+
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		b := ballots.Tx(tx)
+		a10, _, err := b.Association(10)
+		assertErrorFail(t, "", err, nil)
+		a11, _, err := b.Association(11)
+		assertErrorFail(t, "", err, nil)
+		a12, _, err := b.Association(12)
+		assertErrorFail(t, "", err, nil)
+
+		for _, e := range []struct {
+			a *boltron.AssociationTx[string, uint64]
+			l string
+			r uint64
+		}{
+			{a10, "alice", 1000}, {a10, "bob", 2000}, {a10, "carol", 3000},
+			{a11, "alice", 4000}, {a11, "carol", 5000},
+			{a12, "alice", 6000}, {a12, "bob", 7000},
+		} {
+			err := e.a.Set(e.l, e.r)
+			assertErrorFail(t, "", err, nil)
+		}
+	})
+
+	// Remove bob from assoc 10. Bob's index sub-bucket {10,12} → {12}: not deleted.
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		b := ballots.Tx(tx)
+		a10, _, err := b.Association(10)
+		assertErrorFail(t, "", err, nil)
+		err = a10.DeleteByLeft("bob", true)
+		assertErrorFail(t, "", err, nil)
+	})
+
+	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+		b := ballots.Tx(tx)
+
+		// bob still exists via assoc 12.
+		has, err := b.HasLeft("bob")
+		assertErrorFail(t, "", err, nil)
+		assert(t, "bob still exists after partial removal", has, true)
+
+		// All exact right-values must be intact.
+		assertAssocRight(t, b, 10, "alice", uint64(1000))
+		assertAssocRight(t, b, 10, "carol", uint64(3000))
+		assertAssocRight(t, b, 11, "alice", uint64(4000))
+		assertAssocRight(t, b, 11, "carol", uint64(5000))
+		assertAssocRight(t, b, 12, "alice", uint64(6000))
+		assertAssocRight(t, b, 12, "bob", uint64(7000))
+
+		assertAssocSize(t, b, 10, 2) // alice + carol
+		assertAssocSize(t, b, 11, 2)
+		assertAssocSize(t, b, 12, 2)
+	})
+
+	// Remove bob from assoc 12 too. Now bob's sub-bucket is empty → deleted.
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		b := ballots.Tx(tx)
+		a12, _, err := b.Association(12)
+		assertErrorFail(t, "", err, nil)
+		err = a12.DeleteByLeft("bob", true)
+		assertErrorFail(t, "", err, nil)
+	})
+
+	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+		b := ballots.Tx(tx)
+
+		has, err := b.HasLeft("bob")
+		assertErrorFail(t, "", err, nil)
+		assert(t, "bob is gone after last removal", has, false)
+
+		// Every alice and carol entry must be exactly as stored.
+		assertAssocRight(t, b, 10, "alice", uint64(1000))
+		assertAssocRight(t, b, 10, "carol", uint64(3000))
+		assertAssocRight(t, b, 11, "alice", uint64(4000))
+		assertAssocRight(t, b, 11, "carol", uint64(5000))
+		assertAssocRight(t, b, 12, "alice", uint64(6000))
+
+		assertAssocSize(t, b, 10, 2)
+		assertAssocSize(t, b, 11, 2)
+		assertAssocSize(t, b, 12, 1)
+
+		assertLeftAssociations(t, b, "alice", []uint64{10, 11, 12})
+		assertLeftAssociations(t, b, "carol", []uint64{10, 11})
+	})
+}
+
+// TestAssociations_deleteAssociation_dataIntegrity verifies that
+// DeleteAssociation removes only the targeted association and its index
+// entries. Every left-value that also appears in surviving associations must
+// have exactly the right-values that were written for those associations.
+func TestAssociations_deleteAssociation_dataIntegrity(t *testing.T) {
+	// Data:
+	//   assoc 10: alice→1000, bob→2000   ← will be deleted
+	//   assoc 11: alice→3000, carol→4000
+	//   assoc 12: carol→5000
+	// Deleting assoc 10: alice's leftIndex entry for 10 removed (11 survives).
+	//                    bob's leftIndex entry for 10 removed → sub-bucket empty → deleted.
+	// carol is not in assoc 10 → her sub-bucket completely untouched.
+
+	db := newDB(t)
+
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		b := ballots.Tx(tx)
+		a10, _, err := b.Association(10)
+		assertErrorFail(t, "", err, nil)
+		a11, _, err := b.Association(11)
+		assertErrorFail(t, "", err, nil)
+		a12, _, err := b.Association(12)
+		assertErrorFail(t, "", err, nil)
+
+		for _, e := range []struct {
+			a *boltron.AssociationTx[string, uint64]
+			l string
+			r uint64
+		}{
+			{a10, "alice", 1000}, {a10, "bob", 2000},
+			{a11, "alice", 3000}, {a11, "carol", 4000},
+			{a12, "carol", 5000},
+		} {
+			err := e.a.Set(e.l, e.r)
+			assertErrorFail(t, "", err, nil)
+		}
+	})
+
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		b := ballots.Tx(tx)
+		err := b.DeleteAssociation(10, true)
+		assertErrorFail(t, "", err, nil)
+	})
+
+	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+		b := ballots.Tx(tx)
+
+		has, err := b.HasAssociation(10)
+		assertErrorFail(t, "", err, nil)
+		assert(t, "assoc 10 is gone", has, false)
+
+		has, err = b.HasLeft("bob")
+		assertErrorFail(t, "", err, nil)
+		assert(t, "bob is gone (was only in assoc 10)", has, false)
+
+		// alice is still in assoc 11 with the correct right-value.
+		assertAssocRight(t, b, 11, "alice", uint64(3000))
+		assertAssocRight(t, b, 11, "carol", uint64(4000))
+		assertAssocRight(t, b, 12, "carol", uint64(5000))
+
+		assertAssocSize(t, b, 11, 2)
+		assertAssocSize(t, b, 12, 1)
+
+		assertLeftAssociations(t, b, "alice", []uint64{11})
+		assertLeftAssociations(t, b, "carol", []uint64{11, 12})
+	})
+}
+
+// TestAssociations_multipleSimultaneousBucketDeletes_dataIntegrity verifies
+// that deleting the last left-index entry for multiple left values in one
+// transaction each cleans up exactly its own sub-bucket, leaving all other
+// left values and exact right-values intact.
+func TestAssociations_multipleSimultaneousBucketDeletes_dataIntegrity(t *testing.T) {
+	// Data:
+	//   assoc 10: alice→1000, bob→2000, carol→3000
+	//   assoc 11: alice→4000, carol→5000
+	//
+	// In ONE transaction on assoc 10:
+	//   DeleteByLeft("bob")   → bob's sub-bucket   {10}    → empty → DELETED
+	//   DeleteByLeft("carol") → carol's sub-bucket {10,11} → {11}  → survives
+	//
+	// alice sub-bucket {10,11} must be completely intact with correct rights.
+
+	db := newDB(t)
+
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		b := ballots.Tx(tx)
+		a10, _, err := b.Association(10)
+		assertErrorFail(t, "", err, nil)
+		a11, _, err := b.Association(11)
+		assertErrorFail(t, "", err, nil)
+
+		assertErrorFail(t, "", a10.Set("alice", uint64(1000)), nil)
+		assertErrorFail(t, "", a10.Set("bob", uint64(2000)), nil)
+		assertErrorFail(t, "", a10.Set("carol", uint64(3000)), nil)
+		assertErrorFail(t, "", a11.Set("alice", uint64(4000)), nil)
+		assertErrorFail(t, "", a11.Set("carol", uint64(5000)), nil)
+	})
+
+	dbUpdate(t, db, func(t testing.TB, tx *bolt.Tx) {
+		b := ballots.Tx(tx)
+		a10, _, err := b.Association(10)
+		assertErrorFail(t, "", err, nil)
+
+		err = a10.DeleteByLeft("bob", true)
+		assertErrorFail(t, "", err, nil)
+		err = a10.DeleteByLeft("carol", true)
+		assertErrorFail(t, "", err, nil)
+	})
+
+	dbView(t, db, func(t testing.TB, tx *bolt.Tx) {
+		b := ballots.Tx(tx)
+
+		has, err := b.HasLeft("bob")
+		assertErrorFail(t, "", err, nil)
+		assert(t, "bob gone", has, false)
+
+		// carol survives via assoc 11.
+		has, err = b.HasLeft("carol")
+		assertErrorFail(t, "", err, nil)
+		assert(t, "carol still present", has, true)
+
+		// All exact right-values intact.
+		assertAssocRight(t, b, 10, "alice", uint64(1000))
+		assertAssocRight(t, b, 11, "alice", uint64(4000))
+		assertAssocRight(t, b, 11, "carol", uint64(5000))
+
+		assertAssocSize(t, b, 10, 1) // alice only
+		assertAssocSize(t, b, 11, 2) // alice + carol
+
+		assertLeftAssociations(t, b, "alice", []uint64{10, 11})
+		assertLeftAssociations(t, b, "carol", []uint64{11})
+	})
+}
+
 func ballotsDB(t testing.TB) *bolt.DB {
 	t.Helper()
 
